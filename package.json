@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server/index.js",
+    "build:pages": "node scripts/build-static.mjs",
     "validate": "node scripts/validate-rules.mjs",
     "smoke": "node scripts/smoke.mjs",
     "test": "node scripts/validate-rules.mjs && node scripts/smoke.mjs"

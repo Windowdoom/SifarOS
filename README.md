@@ -59,7 +59,7 @@ honesty is built into the architecture, not bolted on:
   person's own phone. Free-text descriptions are sent only to produce a result and
   are never stored server-side. One tap deletes everything.
 
-See [`docs/SAFETY.md`](docs/SAFETY.md) for how each hard rule maps to code.
+See [`documentation/SAFETY.md`](documentation/SAFETY.md) for how each hard rule maps to code.
 
 ---
 
@@ -131,8 +131,10 @@ public/                     THE PWA — vanilla, low-bandwidth, offline-capable
 scripts/
   validate-rules.mjs        enforces the provenance contract
   smoke.mjs                 end-to-end reasoning assertions
-docs/
+  build-static.mjs          builds the server-free static site into docs/ (GitHub Pages)
+documentation/
   ARCHITECTURE.md  SAFETY.md
+docs/                       generated static site for GitHub Pages (npm run build:pages)
 ```
 
 The screener (`public/js/screener.js`) is deliberately a plain ES module with no
