@@ -84,6 +84,7 @@
 
   "interview": {
     "required": true,
+    "ifMissed": { "en": "If you miss the interview call, call your county right away to reschedule — you usually get another chance, but don't wait. You can find your county's number through the CalFresh Info Line 1-877-847-3663 or in your BenefitsCal account.", "es": "Si pierde la llamada de la entrevista, llame a su condado de inmediato para reprogramar: normalmente tiene otra oportunidad, pero no espere. Puede encontrar el número de su condado a través de la Línea de Información de CalFresh 1-877-847-3663 o en su cuenta de BenefitsCal." },
     "how": {
       "en": "In most counties the interview is a phone call. The county worker calls YOU. The call may come from a blocked, unknown, or 'No Caller ID' number, so try to answer unknown calls after you apply. If you can't do a phone call, you can ask to be seen in person.",
       "es": "En la mayoría de los condados la entrevista es una llamada telefónica. El trabajador del condado le llama a USTED. La llamada puede venir de un número bloqueado, desconocido o 'sin identificador', así que trate de contestar llamadas desconocidas después de solicitar. Si no puede hacer una llamada, puede pedir ser atendido en persona."

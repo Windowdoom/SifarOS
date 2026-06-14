@@ -55,6 +55,14 @@ async function main() {
     // 8) Channels exist for the persistent help bar (official + phone).
     assert(!!rules.channels.officialApplicationPortal.url, `official application URL present`);
     assert(!!rules.channels.statewideInfoLine.phone, `helpline phone present`);
+
+    // 9) Phase 2 depth: interview prep + renewal walkthrough content present.
+    assert((rules.interview.checklist || []).length > 0, `interview readiness checklist present`);
+    assert((rules.interview.practice || []).length > 0, `interview practice questions present`);
+    assert(!!rules.interview.ifMissed, `missed-interview recovery guidance present`);
+    assert((rules.retention.recertSteps || []).length > 0, `renewal walkthrough steps present`);
+    assert((rules.retention.recertCommonFailures || []).length > 0, `renewal common-failures present`);
+    assert(!!rules.retention.changeReporting, `between-renewal change-reporting guidance present`);
   }
 
   console.log("\n" + "─".repeat(48));

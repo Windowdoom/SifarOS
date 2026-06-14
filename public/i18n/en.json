@@ -123,7 +123,13 @@
     "tips": "Tips that help",
     "setDate": "Add my interview date",
     "dateLabel": "When is your interview? (if you know)",
-    "saved": "Saved"
+    "saved": "Saved",
+    "checklistTitle": "Before the call — get ready",
+    "practiceTitle": "Practice the questions",
+    "practiceIntro": "Read each question and think about your honest answer. Tap a question to see how to answer it.",
+    "answerHint": "How to answer",
+    "yourAnswer": "Your answer (saved on this phone only)",
+    "ifMissedTitle": "If you miss the call"
   },
   "renew": {
     "title": "Keep your benefits",
@@ -143,7 +149,16 @@
     "daysLeft": "{n} days left",
     "dueToday": "Due today",
     "overdue": "Past due — call now",
-    "startRecert": "Start my renewal"
+    "startRecert": "Start my renewal",
+    "changeTitle": "What to tell them between renewals",
+    "failuresTitle": "Why renewals fail (avoid these)",
+    "reportTitle": "Mid-period report"
+  },
+  "recert": {
+    "title": "Your renewal, step by step",
+    "intro": "Renewing on time keeps your benefits with no gap. I'll walk you through it, and your place is saved.",
+    "finishTitle": "Ready to renew",
+    "finishBody": "Send your renewal on the official site (or by phone) before your deadline. Bring your notes and your proof (ID, recent income, rent and utilities)."
   },
   "reminders": {
     "enable": "Remind me on this phone",

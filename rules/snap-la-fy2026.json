@@ -78,6 +78,7 @@
 
   "interview": {
     "required": true,
+    "ifMissed": { "en": "If you miss the interview call, reschedule on the CAFÉ portal or call 1-888-524-3578 right away. Remember the call may show as a 318 'Spam Risk' number — don't ignore it.", "es": "Si pierde la llamada de la entrevista, reprograme en el portal CAFÉ o llame al 1-888-524-3578 de inmediato. Recuerde que la llamada puede aparecer como un número 318 'Spam Risk': no la ignore." },
     "how": {
       "en": "The interview is a phone call. The worker calls YOU. In Louisiana the call often comes from a (318) area code and may show on your phone as 'Spam Risk' or 'Spam Likely' - answer it anyway, it may be DCFS. If you miss it, you can reschedule on the CAFÉ portal or by calling 1-888-524-3578.",
       "es": "La entrevista es una llamada telefónica. El trabajador le llama a USTED. En Louisiana la llamada a menudo viene de un código de área (318) y puede mostrarse en su teléfono como 'Spam Risk' o 'Spam Likely': conteste de todos modos, puede ser DCFS. Si la pierde, puede reprogramar en el portal CAFÉ o llamando al 1-888-524-3578."

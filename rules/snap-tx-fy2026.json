@@ -78,6 +78,7 @@
 
   "interview": {
     "required": true,
+    "ifMissed": { "en": "If you miss the interview, call 2-1-1 (choose option 2) right away to reschedule, or check the Your Texas Benefits app or website for a new appointment.", "es": "Si pierde la entrevista, llame al 2-1-1 (elija la opción 2) de inmediato para reprogramar, o revise la aplicación o el sitio web Your Texas Benefits para una nueva cita." },
     "how": {
       "en": "The interview is usually a phone call, and the HHS worker calls YOU if you gave a phone number. Keep your phone handy after you apply and answer unknown numbers. If a phone call won't work, you can ask to be seen in person at a local office.",
       "es": "La entrevista normalmente es una llamada telefónica, y el trabajador de HHS le llama a USTED si dio un número de teléfono. Tenga su teléfono a mano después de solicitar y conteste números desconocidos. Si una llamada no funciona, puede pedir ser atendido en persona en una oficina local."

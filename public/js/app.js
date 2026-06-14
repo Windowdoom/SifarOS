@@ -20,14 +20,22 @@ const defaultState = () => ({
   lastEstimate: null,
   lastRoute: [],
   application: { answers: {}, notes: {}, index: 0, docsHave: {} },
-  preparation: { interviewDate: null, bringHave: {} },
-  retention: { enrolledDate: null, certEndDate: null },
+  preparation: { interviewDate: null, bringHave: {}, checklist: {}, practiceNotes: {} },
+  retention: { enrolledDate: null, certEndDate: null, recert: { index: 0, notes: {} } },
 });
 
 let state = loadState();
 function loadState() {
   try {
-    return { ...defaultState(), ...JSON.parse(localStorage.getItem(STATE_KEY) || "{}") };
+    const parsed = JSON.parse(localStorage.getItem(STATE_KEY) || "{}");
+    const d = defaultState();
+    const s = { ...d, ...parsed };
+    // Merge nested defaults so older saved states gain new fields without losing data.
+    s.application = { ...d.application, ...(parsed.application || {}) };
+    s.preparation = { ...d.preparation, ...(parsed.preparation || {}) };
+    s.retention = { ...d.retention, ...(parsed.retention || {}) };
+    if (!s.retention.recert) s.retention.recert = { index: 0, notes: {} };
+    return s;
   } catch {
     return defaultState();
   }
@@ -483,6 +491,25 @@ function viewPrepare() {
   const bring = (iv.whatToBring || []).map(docChip).join("");
   const tips = [...(iv.tips || []), ...(iv.stateTips || [])].map((tp) => `<li>${esc(pick(tp))}</li>`).join("");
   const date = state.preparation.interviewDate || "";
+  const checklistItems = iv.checklist || [];
+  const checklist = checklistItems.length
+    ? `<section class="card"><h3>✅ ${esc(t("prepare.checklistTitle"))}</h3><ul class="checklist">${checklistItems
+        .map((c, i) => `<li><label class="check"><input type="checkbox" data-action="toggle" data-path="preparation.checklist.${i}" ${state.preparation.checklist && state.preparation.checklist[i] ? "checked" : ""}/> <span>${esc(pick(c))}</span></label></li>`)
+        .join("")}</ul></section>`
+    : "";
+  const practiceItems = iv.practice || [];
+  const practice = practiceItems.length
+    ? `<section class="card"><h3>🗣️ ${esc(t("prepare.practiceTitle"))}</h3><p class="fineprint">${esc(t("prepare.practiceIntro"))}</p>${practiceItems
+        .map((p, i) => `<details class="disclosure"><summary>${esc(pick(p.q))}</summary>
+            <p><strong>${esc(t("prepare.answerHint"))}:</strong> ${esc(pick(p.hint))}</p>
+            <label class="field-label" for="pa_${i}">${esc(t("prepare.yourAnswer"))}</label>
+            <textarea id="pa_${i}" class="input textarea" rows="2" data-model="preparation.practiceNotes.${i}">${esc((state.preparation.practiceNotes && state.preparation.practiceNotes[i]) || "")}</textarea>
+          </details>`)
+        .join("")}</section>`
+    : "";
+  const ifMissed = iv.ifMissed
+    ? `<section class="card card-tip"><h3>📞 ${esc(t("prepare.ifMissedTitle"))}</h3><p>${esc(pick(iv.ifMissed))}</p></section>`
+    : "";
   return `
     <h1>${esc(t("prepare.title"))}</h1>
     <p class="lead">${esc(t("prepare.intro"))}</p>
@@ -490,7 +517,10 @@ function viewPrepare() {
     ${iv.when ? `<section class="card"><h3>${esc(t("prepare.when"))}</h3><p>${esc(pick(iv.when))}</p></section>` : ""}
     ${ask ? `<section class="card"><h3>${esc(t("prepare.ask"))}</h3><ul>${ask}</ul></section>` : ""}
     ${bring ? `<section class="card"><h3>${esc(t("prepare.bring"))}</h3><div class="chips">${bring}</div></section>` : ""}
+    ${checklist}
+    ${practice}
     ${tips ? `<section class="card card-tip"><h3>💡 ${esc(t("prepare.tips"))}</h3><ul>${tips}</ul></section>` : ""}
+    ${ifMissed}
     <section class="card">
       <label class="field-label" for="ivdate">${esc(t("prepare.dateLabel"))}</label>
       <input id="ivdate" class="input" type="date" data-model="preparation.interviewDate" value="${esc(date)}" />
@@ -507,6 +537,10 @@ function viewRenew() {
   const enrolled = state.retention.enrolledDate || "";
   const certEnd = state.retention.certEndDate || "";
   const report = r.periodicReport || {};
+  const cr = r.changeReporting;
+  const changeReport = cr
+    ? `<section class="card"><h3>🔔 ${esc(t("renew.changeTitle"))}</h3><ul>${(cr.items || []).map((it) => `<li>${esc(pick(it))}</li>`).join("")}</ul>${cr.note ? `<p class="fineprint">${esc(pick(cr.note))}</p>` : ""}</section>`
+    : "";
   // compute dates
   let renewalDate = certEnd || (enrolled && certMonths ? addMonths(enrolled, certMonths) : null);
   let renewalEstimated = !certEnd && !!renewalDate;
@@ -529,7 +563,6 @@ function viewRenew() {
       </div>`;
     })
     .join("");
-  const portal = ch().officialApplicationPortal;
   return `
     ${verifyBanner()}
     <h1>${esc(t("renew.title"))}</h1>
@@ -547,7 +580,8 @@ function viewRenew() {
       <p class="fineprint">${esc(t("renew.computeNote"))}</p>
     </section>
     ${upcoming.length ? `<section class="card"><h3>${esc(t("renew.upcoming"))}</h3>${upcomingHtml}</section>` : ""}
-    ${portal ? `<a class="btn btn-block btn-lg" href="${esc(portal.url)}" target="_blank" rel="noopener">${esc(t("renew.startRecert"))} — ${esc(portal.label)}</a>` : ""}
+    ${changeReport}
+    <button class="btn btn-block btn-lg" data-action="nav:recert">${esc(t("renew.startRecert"))}</button>
     ${helpCard()}
   `;
 }
@@ -556,6 +590,43 @@ function certNoteText(months) {
   return state.lang === "es"
     ? `Muchos hogares están aprobados por unos ${months} meses. Su aviso oficial indica su fecha exacta — confíe en ese aviso.`
     : `Many households are approved for about ${months} months. Your official notice lists your exact date — trust that notice.`;
+}
+
+// Recertification walkthrough — the guided renewal (Phase 2 retention depth).
+function viewRecert() {
+  const steps = (rules && rules.retention && rules.retention.recertSteps) || [];
+  if (!steps.length) return `<h1>${esc(t("recert.title"))}</h1><p>${esc(t("common.loading"))}</p>` + helpCard();
+  const i = (state.retention.recert && state.retention.recert.index) || 0;
+  if (i >= steps.length) return recertFinish();
+  const step = steps[i];
+  const note = (state.retention.recert.notes && state.retention.recert.notes[step.id]) || "";
+  return `
+    ${i === 0 ? `<p class="lead">${esc(t("recert.intro"))}</p>` : ""}
+    <div class="progress"><div class="progress-bar" style="width:${Math.round((i / steps.length) * 100)}%"></div></div>
+    <p class="step-count">${esc(t("apply.step"))} ${i + 1} ${esc(t("apply.of"))} ${steps.length}</p>
+    <h1 class="question">${esc(pick(step.prompt))}</h1>
+    ${explainBtn(pick(step.prompt))}
+    <details class="disclosure"><summary>${esc(t("apply.why"))}</summary><p>${esc(pick(step.why))}</p></details>
+    <label class="field-label" for="rn">${esc(t("apply.notes"))}</label>
+    <textarea id="rn" class="input textarea" rows="3" placeholder="${esc(t("apply.notesPlaceholder"))}" data-model="retention.recert.notes.${esc(step.id)}">${esc(note)}</textarea>
+    <div class="row">
+      ${i > 0 ? `<button class="btn btn-ghost" data-action="recert:back">${esc(t("common.back"))}</button>` : ""}
+      <button class="btn btn-lg" data-action="recert:next">${esc(t("common.next"))}</button>
+    </div>
+    ${helpCard()}
+  `;
+}
+function recertFinish() {
+  const portal = ch().officialApplicationPortal;
+  const failures = (rules && rules.retention && rules.retention.recertCommonFailures) || [];
+  return `
+    <h1>✅ ${esc(t("recert.finishTitle"))}</h1>
+    <p class="lead">${esc(t("recert.finishBody"))}</p>
+    ${failures.length ? `<section class="card card-tip"><h3>⚠️ ${esc(t("renew.failuresTitle"))}</h3><ul>${failures.map((f) => `<li>${esc(pick(f))}</li>`).join("")}</ul></section>` : ""}
+    ${portal ? `<a class="btn btn-block btn-lg" href="${esc(portal.url)}" target="_blank" rel="noopener">${esc(t("apply.finishCta"))} — ${esc(portal.label)}</a>` : ""}
+    <button class="link-btn block-center" data-action="recert:restart">${esc(t("common.back"))} — ${esc(t("apply.step"))} 1</button>
+    ${helpCard()}
+  `;
 }
 
 // Privacy
@@ -624,6 +695,9 @@ async function render() {
       break;
     case "renew":
       mount(viewRenew());
+      break;
+    case "recert":
+      mount(viewRecert());
       break;
     case "privacy":
       mount(viewPrivacy());
@@ -715,6 +789,23 @@ async function onClick(ev) {
       state.application.index = 0;
       saveState();
       mount(viewApply());
+      return;
+    case "recert:next": {
+      const steps = (rules.retention && rules.retention.recertSteps) || [];
+      state.retention.recert.index = Math.min((state.retention.recert.index || 0) + 1, steps.length);
+      saveState();
+      mount(viewRecert());
+      return;
+    }
+    case "recert:back":
+      state.retention.recert.index = Math.max((state.retention.recert.index || 0) - 1, 0);
+      saveState();
+      mount(viewRecert());
+      return;
+    case "recert:restart":
+      state.retention.recert.index = 0;
+      saveState();
+      mount(viewRecert());
       return;
     case "toggle": {
       const path = el.getAttribute("data-path");

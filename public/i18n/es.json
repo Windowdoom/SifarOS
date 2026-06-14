@@ -123,7 +123,13 @@
     "tips": "Consejos que ayudan",
     "setDate": "Agregar la fecha de mi entrevista",
     "dateLabel": "¿Cuándo es su entrevista? (si la sabe)",
-    "saved": "Guardado"
+    "saved": "Guardado",
+    "checklistTitle": "Antes de la llamada — prepárese",
+    "practiceTitle": "Practique las preguntas",
+    "practiceIntro": "Lea cada pregunta y piense en su respuesta honesta. Toque una pregunta para ver cómo responder.",
+    "answerHint": "Cómo responder",
+    "yourAnswer": "Su respuesta (guardada solo en este teléfono)",
+    "ifMissedTitle": "Si pierde la llamada"
   },
   "renew": {
     "title": "Mantenga sus beneficios",
@@ -143,7 +149,16 @@
     "daysLeft": "Faltan {n} días",
     "dueToday": "Vence hoy",
     "overdue": "Vencido — llame ahora",
-    "startRecert": "Empezar mi renovación"
+    "startRecert": "Empezar mi renovación",
+    "changeTitle": "Qué decirles entre renovaciones",
+    "failuresTitle": "Por qué fallan las renovaciones (evítelas)",
+    "reportTitle": "Informe de mitad de período"
+  },
+  "recert": {
+    "title": "Su renovación, paso a paso",
+    "intro": "Renovar a tiempo mantiene sus beneficios sin interrupción. Le guío, y su progreso se guarda.",
+    "finishTitle": "Listo para renovar",
+    "finishBody": "Envíe su renovación en el sitio oficial (o por teléfono) antes de su fecha límite. Lleve sus notas y su prueba (identificación, ingresos recientes, alquiler y servicios)."
   },
   "reminders": {
     "enable": "Recordarme en este teléfono",

@@ -165,6 +165,21 @@
       { "en": "Keep your phone nearby and charged in the days after you apply. A missed interview is the most common reason eligible people get denied.", "es": "Mantenga su teléfono cerca y cargado en los días después de solicitar. Una entrevista perdida es la razón más común por la que personas elegibles son denegadas." },
       { "en": "If you miss the call, call the agency back right away - you usually get another chance, but don't wait.", "es": "Si pierde la llamada, llame a la agencia de inmediato: normalmente tiene otra oportunidad, pero no espere." },
       { "en": "It's okay to ask the worker to slow down, repeat, or explain. You can ask for an interpreter in your language for free.", "es": "Está bien pedirle al trabajador que vaya más despacio, repita o explique. Puede pedir un intérprete en su idioma gratis." }
+    ],
+    "checklist": [
+      { "en": "Charge your phone and keep it with you for the next few days.", "es": "Cargue su teléfono y manténgalo con usted los próximos días." },
+      { "en": "Find a quiet place where you can hear and talk.", "es": "Busque un lugar tranquilo donde pueda escuchar y hablar." },
+      { "en": "Have your papers within reach: ID, recent income, and your rent and utility costs.", "es": "Tenga sus papeles a la mano: identificación, ingresos recientes, y sus costos de alquiler y servicios." },
+      { "en": "Know roughly your monthly income and your monthly costs.", "es": "Sepa más o menos sus ingresos mensuales y sus costos mensuales." },
+      { "en": "Expect a call from a blocked or unknown number — answer it.", "es": "Espere una llamada de un número bloqueado o desconocido: contéstela." },
+      { "en": "Remember: you can ask for an interpreter in your language, for free.", "es": "Recuerde: puede pedir un intérprete en su idioma, gratis." }
+    ],
+    "practice": [
+      { "q": { "en": "Who lives in your home, and do you buy and cook food together?", "es": "¿Quién vive en su hogar, y compran y cocinan la comida juntos?" }, "hint": { "en": "Just describe your household honestly. Count the people who share food with you.", "es": "Solo describa su hogar con honestidad. Cuente a las personas que comparten la comida con usted." } },
+      { "q": { "en": "How much money does your household get each month, and where from?", "es": "¿Cuánto dinero recibe su hogar cada mes, y de dónde?" }, "hint": { "en": "Give your best honest numbers, before taxes. Include jobs and other income like unemployment or Social Security.", "es": "Dé sus mejores números honestos, antes de impuestos. Incluya trabajos y otros ingresos como desempleo o Seguro Social." } },
+      { "q": { "en": "What do you pay for rent or mortgage, and for utilities?", "es": "¿Cuánto paga de alquiler o hipoteca, y de servicios?" }, "hint": { "en": "These costs can raise your benefit, so don't leave them out.", "es": "Estos costos pueden aumentar su beneficio, así que no los omita." } },
+      { "q": { "en": "Has anything changed since you applied?", "es": "¿Ha cambiado algo desde que solicitó?" }, "hint": { "en": "Mention any change in income, who lives with you, or your address.", "es": "Mencione cualquier cambio en los ingresos, quién vive con usted, o su dirección." } },
+      { "q": { "en": "Does anyone have a special situation — age 60+, a disability, or a recent job loss?", "es": "¿Alguien tiene una situación especial: 60+ años, una discapacidad, o una pérdida reciente de trabajo?" }, "hint": { "en": "These can change your case for the better, so it's worth saying.", "es": "Estas pueden cambiar su caso para mejor, así que vale la pena decirlo." } }
     ]
   },
 
@@ -180,5 +195,30 @@
       { "id": "categorical_eligibility", "term": { "en": "Categorical eligibility", "es": "Elegibilidad categórica" }, "plain": { "en": "A rule that lets your state use a higher income limit and skip the savings test, so more working families can qualify.", "es": "Una regla que permite a su estado usar un límite de ingresos más alto y omitir la prueba de ahorros, para que más familias trabajadoras puedan calificar." } },
       { "id": "interview", "term": { "en": "Eligibility interview", "es": "Entrevista de elegibilidad" }, "plain": { "en": "A short talk (usually a phone call) where a worker checks your answers before approving SNAP. You can ask them to slow down or use your language.", "es": "Una conversación corta (normalmente una llamada) donde un trabajador revisa sus respuestas antes de aprobar SNAP. Puede pedirles que vayan más despacio o usen su idioma." } }
     ]
+  },
+
+  "retention": {
+    "recertSteps": [
+      { "id": "whats_changed", "prompt": { "en": "Has anything changed since last time? Think about your income, who lives with you, your address, and your costs (rent, utilities, childcare).", "es": "¿Ha cambiado algo desde la última vez? Piense en sus ingresos, quién vive con usted, su dirección, y sus costos (alquiler, servicios, cuidado de niños)." }, "why": { "en": "Renewal is mostly about updating what changed. Reporting changes honestly keeps your case correct and avoids an overpayment you'd have to repay.", "es": "La renovación se trata sobre todo de actualizar lo que cambió. Reportar los cambios con honestidad mantiene su caso correcto y evita un sobrepago que tendría que devolver." } },
+      { "id": "income_now", "prompt": { "en": "What is your household income right now? Use your most recent pay, not last year's.", "es": "¿Cuál es el ingreso de su hogar ahora mismo? Use su pago más reciente, no el del año pasado." }, "why": { "en": "They re-check income at renewal. Your income now decides if you keep getting help and how much.", "es": "Vuelven a revisar los ingresos en la renovación. Sus ingresos ahora deciden si sigue recibiendo ayuda y cuánto." } },
+      { "id": "return_form", "prompt": { "en": "Return the renewal form by the due date. Send it even if a paper is missing — send what you have and add the rest after.", "es": "Devuelva el formulario de renovación antes de la fecha límite. Envíelo aunque falte un papel: envíe lo que tiene y agregue el resto después." }, "why": { "en": "Not returning the form on time is the number one reason people lose benefits they still qualify for.", "es": "No devolver el formulario a tiempo es la razón número uno por la que las personas pierden beneficios para los que aún califican." } },
+      { "id": "renewal_interview", "prompt": { "en": "Be ready for a renewal interview — usually a quick phone call, like the first one. Keep your phone nearby.", "es": "Esté listo para una entrevista de renovación: normalmente una llamada rápida, como la primera. Mantenga su teléfono cerca." }, "why": { "en": "Most renewals include another short interview. Missing it can stop your benefits.", "es": "La mayoría de las renovaciones incluyen otra entrevista corta. Perderla puede detener sus beneficios." } },
+      { "id": "documents", "prompt": { "en": "Have your proof ready: ID, your most recent income, and your rent and utility costs.", "es": "Tenga su prueba lista: identificación, sus ingresos más recientes, y sus costos de alquiler y servicios." }, "why": { "en": "Sending proof quickly keeps your renewal moving and your benefits flowing.", "es": "Enviar la prueba rápido mantiene su renovación avanzando y sus beneficios fluyendo." } },
+      { "id": "submit", "prompt": { "en": "Submit your renewal on the official site (or by phone) before the deadline. Then watch for any letters or calls.", "es": "Envíe su renovación en el sitio oficial (o por teléfono) antes de la fecha límite. Luego esté atento a cartas o llamadas." }, "why": { "en": "Renewing on time means your benefits continue with no gap.", "es": "Renovar a tiempo significa que sus beneficios continúan sin interrupción." } }
+    ],
+    "recertCommonFailures": [
+      { "en": "Not returning the renewal form by the due date.", "es": "No devolver el formulario de renovación antes de la fecha límite." },
+      { "en": "Missing the renewal interview call.", "es": "Perder la llamada de la entrevista de renovación." },
+      { "en": "Not sending the proof they asked for.", "es": "No enviar la prueba que pidieron." },
+      { "en": "Forgetting the mid-period report — it is separate from your renewal.", "es": "Olvidar el informe de mitad de período: es aparte de su renovación." }
+    ],
+    "changeReporting": {
+      "items": [
+        { "en": "A big change in income — a new job, more or fewer hours, or losing a job.", "es": "Un cambio grande en los ingresos: un nuevo trabajo, más o menos horas, o perder un trabajo." },
+        { "en": "Someone moving into or out of your home.", "es": "Alguien que se muda a su hogar o se va de él." },
+        { "en": "A new address.", "es": "Una nueva dirección." }
+      ],
+      "note": { "en": "You don't have to report every little thing, and the exact rules depend on your state. When in doubt, report it or ask the helpline — it protects you from an overpayment you'd have to repay.", "es": "No tiene que reportar cada pequeña cosa, y las reglas exactas dependen de su estado. En caso de duda, repórtelo o pregunte a la línea de ayuda: le protege de un sobrepago que tendría que devolver." }
+    }
   }
 }

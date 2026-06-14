@@ -163,8 +163,11 @@ The discipline *is* the product. Built depth-first, not breadth-first:
 - **Phase 1 (this build):** the full SNAP lifecycle — discovery, application,
   interview prep, renewal tracking — for CA / LA / TX, in EN/ES, with every rule
   sourced.
-- **Phase 2:** operator-verify all rules; deepen renewal and interview prep (the
-  places people fall out).
+- **Phase 2 (this build):** the lifecycle depth where people fall out — an
+  interview **readiness checklist** and **practice questions** with answer hints,
+  **missed-interview recovery** (state-specific), and a full guided **renewal
+  walkthrough** with between-renewal change-reporting and the common reasons
+  renewals fail. (Operator rule-verification is still pending — see above.)
 - **Phase 3:** adjacent programs in the same places (Medicaid, utility assistance,
   WIC) — the cross-program reasoning is the differentiator.
 - **Phase 4:** more languages actually spoken in these places (e.g. Vietnamese and
