@@ -1,0 +1,26 @@
+{
+  "_comment": "This index declares which jurisdictions the Navigator serves and which rule files compose each one. The server merges each jurisdiction's 'compose' files in order (federal base -> shared content -> state overlay); later files override earlier ones. 'defaultJurisdiction' is only a fallback - the app asks each person to choose their own state, so there is never a wrong default applied to results. To add a Gulf South state (e.g., Mississippi, Alabama, Florida), add a verified overlay file and a new entry here. NEVER claim coverage for a state that does not have a verified overlay file. NEVER put eligibility logic in this file - it is data only.",
+  "schemaVersion": "1.0.0",
+  "region": "Gulf South + California (Phase 1-5 expansion)",
+  "defaultJurisdiction": "us-la",
+  "jurisdictions": {
+    "us-ca": {
+      "displayName": "California",
+      "programName": "CalFresh",
+      "country": "US",
+      "compose": ["snap-federal-fy2026.json", "snap-common-content-en-es.json", "snap-ca-fy2026.json"]
+    },
+    "us-la": {
+      "displayName": "Louisiana",
+      "programName": "SNAP",
+      "country": "US",
+      "compose": ["snap-federal-fy2026.json", "snap-common-content-en-es.json", "snap-la-fy2026.json"]
+    },
+    "us-tx": {
+      "displayName": "Texas",
+      "programName": "SNAP",
+      "country": "US",
+      "compose": ["snap-federal-fy2026.json", "snap-common-content-en-es.json", "snap-tx-fy2026.json"]
+    }
+  }
+}

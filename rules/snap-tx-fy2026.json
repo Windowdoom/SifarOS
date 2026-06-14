@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "title": "Texas SNAP state overlay, FY2026",
+    "overlaysOnto": "snap-federal-fy2026.json + snap-common-content-en-es.json",
+    "VERIFICATION_NOTICE": "SEED DATA, verified:false. The operator MUST confirm every channel, phone number, certification period, asset limit, and income figure against the cited Texas HHSC source before production use. Believed current as of 2026-06 but NOT operator-verified.",
+    "primarySources": [
+      "https://www.yourtexasbenefits.com",
+      "https://www.hhs.texas.gov/services/financial/snap-food-benefits",
+      "https://www.hhs.texas.gov/handbooks/texas-works-handbook/b-120-redeterminations",
+      "https://texaslawhelp.org"
+    ]
+  },
+
+  "jurisdiction": {
+    "code": "us-tx",
+    "displayName": "Texas",
+    "programName": "SNAP",
+    "programNameLong": "SNAP food benefits (Texas Health and Human Services)"
+  },
+
+  "languages": [
+    { "code": "en", "label": "English" },
+    { "code": "es", "label": "Español" }
+  ],
+
+  "eligibilityModel": {
+    "_comment": "Texas uses Broad-Based Categorical Eligibility to raise the gross income limit to 165% FPL, but UNLIKE California and Louisiana, Texas KEEPS a savings/resource limit of about $5,000 (your home and usually your first vehicle do not count). The net income test (100% FPL, federal file) still applies. Households with an elderly (60+) or disabled member are exempt from the gross income test and use the net income and resource tests.",
+    "type": "BBCE",
+    "grossIncomeBasisPctFPL": 165,
+    "assetTest": true,
+    "assetLimit": { "value": 5000, "unit": "USD", "source": "https://www.hhs.texas.gov/services/financial/snap-food-benefits", "verified": false },
+    "assetTestNote": {
+      "en": "Texas looks at your savings (countable assets up to about $5,000). Your home does not count, and usually your first car does not count. This tool only checks income, not savings - the state makes the final call.",
+      "es": "Texas considera sus ahorros (recursos contables de hasta aproximadamente $5,000). Su casa no cuenta, y normalmente su primer carro no cuenta. Esta herramienta solo revisa los ingresos, no los ahorros: el estado toma la decisión final."
+    },
+    "grossMonthlyIncomeLimit": {
+      "unit": "USD/month",
+      "basis": "165% of the 2025 Federal Poverty Guidelines (Texas BBCE gross income limit)",
+      "source": "https://www.hhs.texas.gov/services/financial/snap-food-benefits",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": { "1": 2152, "2": 2909, "3": 3665, "4": 4421, "5": 5177, "6": 5934, "7": 6690, "8": 7446 },
+      "eachAdditionalPerson": 757
+    }
+  },
+
+  "channels": {
+    "officialApplicationPortal": {
+      "label": "YourTexasBenefits",
+      "url": "https://www.yourtexasbenefits.com",
+      "description": { "en": "Texas's official website to apply for SNAP, upload documents, and manage your case. There is also a 'Your Texas Benefits' phone app.", "es": "El sitio web oficial de Texas para solicitar SNAP, subir documentos y administrar su caso. También hay una aplicación de teléfono 'Your Texas Benefits'." },
+      "verified": false, "source": "https://www.hhs.texas.gov/services/financial/snap-food-benefits"
+    },
+    "statewideInfoLine": {
+      "label": "2-1-1 Texas (HHS benefits)",
+      "phone": "211",
+      "phoneSpoken": "2-1-1, then choose option 2",
+      "languages": ["en", "es"],
+      "description": { "en": "Dial 2-1-1 (or 1-877-541-7905) and choose the option for help with your benefits case. English and Spanish.", "es": "Marque 2-1-1 (o 1-877-541-7905) y elija la opción de ayuda con su caso de beneficios. Inglés y español." },
+      "verified": false, "source": "https://www.hhs.texas.gov/services/financial/snap-food-benefits"
+    },
+    "communityResourceLine": {
+      "label": "211", "phone": "211",
+      "description": { "en": "Dial 211 for free, confidential help finding food, housing, and other local resources in Texas.", "es": "Marque 211 para ayuda gratuita y confidencial para encontrar comida, vivienda y otros recursos locales en Texas." },
+      "verified": false, "source": "https://www.211texas.org"
+    },
+    "legalHelp": {
+      "label": "TexasLawHelp", "url": "https://texaslawhelp.org", "altPhone": "211",
+      "description": { "en": "Free legal help with SNAP problems, denials, and appeals. If you are denied or your benefits are cut, you have the right to a free 'fair hearing'.", "es": "Ayuda legal gratuita con problemas de SNAP, denegaciones y apelaciones. Si le niegan o reducen sus beneficios, tiene derecho a una 'audiencia imparcial' gratuita." },
+      "verified": false, "source": "https://texaslawhelp.org"
+    },
+    "emergencyNote": {
+      "en": "If you have almost no money and need food right away, ask Texas HHS about 'expedited' SNAP - some households can get benefits within a few days. Also call 211 to find a food bank near you today.",
+      "es": "Si casi no tiene dinero y necesita comida de inmediato, pregunte a Texas HHS sobre SNAP 'acelerado' (expedited): algunos hogares pueden recibir beneficios en pocos días. También llame al 211 para encontrar un banco de alimentos cerca de usted hoy."
+    }
+  },
+
+  "interview": {
+    "required": true,
+    "ifMissed": { "en": "If you miss the interview, call 2-1-1 (choose option 2) right away to reschedule, or check the Your Texas Benefits app or website for a new appointment.", "es": "Si pierde la entrevista, llame al 2-1-1 (elija la opción 2) de inmediato para reprogramar, o revise la aplicación o el sitio web Your Texas Benefits para una nueva cita." },
+    "how": {
+      "en": "The interview is usually a phone call, and the HHS worker calls YOU if you gave a phone number. Keep your phone handy after you apply and answer unknown numbers. If a phone call won't work, you can ask to be seen in person at a local office.",
+      "es": "La entrevista normalmente es una llamada telefónica, y el trabajador de HHS le llama a USTED si dio un número de teléfono. Tenga su teléfono a mano después de solicitar y conteste números desconocidos. Si una llamada no funciona, puede pedir ser atendido en persona en una oficina local."
+    },
+    "when": {
+      "en": "Usually within the 30-day decision period after you apply. Your notice (Form H1830) lists your interview appointment.",
+      "es": "Normalmente dentro del período de decisión de 30 días después de solicitar. Su aviso (Formulario H1830) indica su cita de entrevista."
+    },
+    "stateTips": [
+      { "en": "You can upload your documents in the 'Your Texas Benefits' app or website instead of mailing them - it's faster and you get a record.", "es": "Puede subir sus documentos en la aplicación o el sitio web 'Your Texas Benefits' en vez de enviarlos por correo: es más rápido y queda un registro." }
+    ]
+  },
+
+  "retention": {
+    "certificationPeriodMonths": { "value": 6, "_note": "Texas often certifies SNAP for 6 months for working households; elderly/disabled households may get longer. Your certification length VARIES - always use the end date on your approval/renewal notice (Form H1830).", "source": "https://www.hhs.texas.gov/handbooks/texas-works-handbook/b-120-redeterminations", "verified": false },
+    "certificationPeriodMonthsElderlyDisabledNoEarnedIncome": { "value": 12, "_note": "Households of only elderly or disabled members may be certified longer. Confirm on your notice.", "source": "https://www.hhs.texas.gov/handbooks/texas-works-handbook/b-120-redeterminations", "verified": false },
+    "periodicReport": {
+      "name": null,
+      "description": { "en": "If your certification is longer than 6 months, Texas may ask for a mid-period report to confirm your information. Watch your mail and the Your Texas Benefits app, and respond to anything HHS sends so your benefits don't stop.", "es": "Si su certificación es más larga de 6 meses, Texas puede pedir un informe a mitad del período para confirmar su información. Esté atento a su correo y a la aplicación Your Texas Benefits, y responda a todo lo que HHS le envíe para que sus beneficios no se detengan." },
+      "source": "https://www.hhs.texas.gov/handbooks/texas-works-handbook/b-120-redeterminations", "verified": false
+    },
+    "recertification": {
+      "description": { "en": "Before your certification period ends, Texas mails a renewal notice (Form H1830). Renew through YourTexasBenefits.com (or the app) and complete another short interview before the deadline so your SNAP continues without a gap.", "es": "Antes de que termine su período de certificación, Texas envía un aviso de renovación (Formulario H1830). Renueve a través de YourTexasBenefits.com (o la aplicación) y complete otra entrevista corta antes de la fecha límite para que su SNAP continúe sin interrupción." },
+      "ifMissed": { "en": "If you miss the renewal, your SNAP stops and you usually have to apply again. If it recently stopped, call 2-1-1 (option 2) right away to ask what you can still do.", "es": "Si pierde la renovación, su SNAP se detiene y normalmente tiene que solicitar de nuevo. Si se detuvo recientemente, llame al 2-1-1 (opción 2) de inmediato para preguntar qué puede hacer todavía." },
+      "source": "https://www.hhs.texas.gov/handbooks/texas-works-handbook/b-120-redeterminations", "verified": false
+    }
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "app": { "title": "El Navegador", "tagline": "Ayuda para conseguir asistencia de comida, paso a paso." },
+  "lang": { "toggle": "English", "name": "Español" },
+  "nav": { "home": "Inicio", "discover": "Empezar", "apply": "Solicitar", "prepare": "Entrevista", "renew": "Renovar" },
+  "help": {
+    "title": "¿Necesita una persona real? Nunca está atrapado en esta aplicación.",
+    "applyOfficial": "Solicitar en el sitio oficial",
+    "call": "Llamar",
+    "findFood": "Encontrar comida ahora — marque 211",
+    "legal": "Ayuda legal gratuita"
+  },
+  "common": {
+    "continue": "Continuar", "back": "Atrás", "next": "Siguiente", "save": "Guardar", "start": "Empezar",
+    "yes": "Sí", "no": "No", "skip": "Omitir", "done": "Listo", "cancel": "Cancelar", "change": "Cambiar",
+    "notSure": "No estoy seguro", "optional": "(opcional)", "loading": "Un momento…"
+  },
+  "explain": { "button": "No entiendo", "title": "En palabras sencillas", "simpler": "Aún más simple", "close": "Cerrar" },
+  "verify": {
+    "banner": "Estos números son un cálculo no oficial y todavía deben confirmarse con la fuente oficial. Siempre confirme con el sitio oficial y una persona real."
+  },
+  "offline": { "note": "Está sin conexión. Todavía puede ver sus pasos y fechas, y los cálculos usan las reglas guardadas." },
+  "home": {
+    "greeting": "Bienvenido/a. Estoy aquí para ayudarle a conseguir asistencia de comida.",
+    "choose": "¿Qué le gustaría hacer?",
+    "discoverTitle": "Ver si puedo recibir ayuda",
+    "discoverDesc": "Cuénteme su situación. Calcularé lo que podría recibir.",
+    "applyTitle": "Ayúdeme a solicitar",
+    "applyDesc": "Le guío paso a paso, en palabras sencillas.",
+    "prepareTitle": "Prepararme para la entrevista",
+    "prepareDesc": "Sepa qué le preguntarán y qué llevar.",
+    "renewTitle": "Mantener mis beneficios (renovación)",
+    "renewDesc": "Nunca más pierda beneficios por una renovación olvidada.",
+    "privacy": "Su privacidad y sus datos",
+    "stateLine": "Mostrando ayuda para:",
+    "modelOff": "La ayuda inteligente está desactivada ahora, así que usaré unas preguntas rápidas. Todo sigue funcionando."
+  },
+  "state": {
+    "title": "¿Dónde vive?",
+    "desc": "Las reglas son diferentes en cada estado. Elija el suyo para que todo lo que le diga sea correcto para usted.",
+    "change": "Cambiar estado",
+    "pick": "Elija su estado"
+  },
+  "consent": {
+    "title": "Antes de empezar",
+    "b1": "Le ayudo a usar el sistema real de asistencia de comida. No soy el gobierno ni un abogado.",
+    "b2": "Pido la menor información posible, y le digo por qué cada vez.",
+    "b3": "Lo que escribe se guarda solo en este teléfono. Puede borrar todo cuando quiera, con un toque.",
+    "b4": "Siempre le muestro el sitio oficial y un teléfono real, para que nunca quede atrapado aquí.",
+    "agree": "Entiendo — empecemos"
+  },
+  "discover": {
+    "title": "Cuénteme qué está pasando",
+    "prompt": "Con sus propias palabras, ¿qué está pasando? Por ejemplo: \"Perdí mi trabajo el mes pasado, tengo dos hijos, y estoy atrasado con la renta.\"",
+    "placeholder": "Escriba aquí…",
+    "mic": "Hablar en vez de escribir",
+    "listening": "Escuchando… toque para parar",
+    "submit": "Ver lo que podría recibir",
+    "useQuestions": "Mejor responder unas preguntas rápidas",
+    "useText": "Mejor escribir mi situación",
+    "privacyNote": "Lo que escribe se usa solo para entender su situación. No se guarda de nuestro lado. Solo guardamos sus respuestas, en este teléfono.",
+    "calc": "Ver mi cálculo",
+    "qIntro": "Puede omitir cualquier pregunta. Mientras más comparta, mejor será el cálculo.",
+    "qHousehold": "¿Cuántas personas viven y comen juntas en su hogar? Cuéntese usted.",
+    "qIncome": "¿Aproximadamente cuánto dinero entra a su hogar cada mes, antes de impuestos?",
+    "qEarned": "¿Cuánto de eso viene de un trabajo o trabajo por cuenta propia?",
+    "qRent": "¿Cuánto paga de alquiler o hipoteca cada mes?",
+    "qUtilities": "¿Cuánto de servicios cada mes? (gas, electricidad, agua, teléfono)",
+    "qDepcare": "¿Paga por cuidado de niños o adultos para poder trabajar? ¿Cuánto al mes?",
+    "qElderly": "¿Hay alguien en su hogar de 60 años o más, o con una discapacidad?",
+    "qImmigration": "¿Alguien que solicita no es ciudadano de EE. UU., o no está seguro de su estado?",
+    "perMonth": "al mes",
+    "people": "personas"
+  },
+  "result": {
+    "likely": "Probablemente califica",
+    "maybe": "Podría calificar — vale la pena solicitar",
+    "unlikely": "Puede que no califique ahora",
+    "unknown": "Necesito un poco más para calcular",
+    "confidence": "Qué tan seguro estoy:",
+    "confLow": "no muy seguro",
+    "confMedium": "algo seguro",
+    "confHigh": "bastante seguro",
+    "benefit": "Cantidad mensual aproximada",
+    "estimatedOnPhone": "Calculado en su teléfono con las reglas guardadas.",
+    "nextApply": "Empezar mi solicitud",
+    "nextBring": "Ver qué llevar",
+    "again": "Intentar de nuevo",
+    "otherTitle": "Otra ayuda que mencionó",
+    "otherNote": "El Navegador solo ayuda con comida (SNAP) por ahora. Para lo de abajo, marque 211 — una persona real puede orientarle."
+  },
+  "human": {
+    "title": "Esta parte necesita una persona real",
+    "body": "Algunas preguntas pueden perjudicar su caso si se responden mal. Por favor hable con un ayudante gratuito sobre:",
+    "cta": "Conseguir ayuda legal gratuita"
+  },
+  "apply": {
+    "title": "Ayúdeme a solicitar",
+    "intro": "Le explico cada parte en palabras sencillas. Cuando esté listo, terminará en el sitio oficial — le mostraré exactamente dónde. Su progreso se guarda solo.",
+    "step": "Paso",
+    "of": "de",
+    "why": "Por qué preguntan esto",
+    "docs": "Papeles que ayudan aquí",
+    "mistakes": "No se deje confundir",
+    "notes": "Sus notas (guardadas solo en este teléfono)",
+    "notesPlaceholder": "Anote su respuesta para tenerla lista…",
+    "resume": "Continuar donde lo dejó",
+    "finishTitle": "Está listo para enviar",
+    "finishBody": "Termine su solicitud en el sitio oficial. Lleve sus notas y papeles. Los beneficios normalmente empiezan desde el día que solicita, así que no espere aunque falte un papel.",
+    "finishCta": "Ir al sitio oficial para enviar",
+    "checklist": "Su lista de documentos",
+    "haveIt": "Ya lo tengo",
+    "official": "Cómo lo llama el formulario"
+  },
+  "docs": { "how": "¿No lo tiene? Esto es lo que puede hacer", "why": "Por qué" },
+  "prepare": {
+    "title": "Prepárese para su entrevista",
+    "intro": "Después de solicitar, normalmente hay una entrevista corta. Perderla es la razón más común por la que personas elegibles son denegadas. Vamos a asegurarnos de que esté listo.",
+    "required": "Sí — hay una entrevista.",
+    "how": "Cómo sucede",
+    "when": "Cuándo sucede",
+    "ask": "Qué le preguntarán",
+    "bring": "Tenga esto listo",
+    "tips": "Consejos que ayudan",
+    "setDate": "Agregar la fecha de mi entrevista",
+    "dateLabel": "¿Cuándo es su entrevista? (si la sabe)",
+    "saved": "Guardado",
+    "checklistTitle": "Antes de la llamada — prepárese",
+    "practiceTitle": "Practique las preguntas",
+    "practiceIntro": "Lea cada pregunta y piense en su respuesta honesta. Toque una pregunta para ver cómo responder.",
+    "answerHint": "Cómo responder",
+    "yourAnswer": "Su respuesta (guardada solo en este teléfono)",
+    "ifMissedTitle": "Si pierde la llamada"
+  },
+  "renew": {
+    "title": "Mantenga sus beneficios",
+    "intro": "Perder beneficios por una renovación olvidada es uno de los problemas más comunes — y más evitables. Vamos a evitar que le pase.",
+    "cert": "Por cuánto tiempo está aprobado",
+    "report": "Revisión a mitad del período",
+    "recert": "Renovación (recertificación)",
+    "ifMissed": "Si la pierde",
+    "addDates": "Agregar mis fechas",
+    "enrolledLabel": "Fecha en que fue aprobado (en su aviso de aprobación)",
+    "certEndLabel": "Fecha en que terminan sus beneficios (de su aviso, si lo tiene)",
+    "computeNote": "¿No tiene la fecha exacta? La calculo desde el día que fue aprobado — pero siempre confíe en su aviso oficial más que en mi cálculo.",
+    "upcoming": "Sus fechas importantes",
+    "renewalDue": "Renovación pendiente",
+    "reportDue": "Revisión pendiente",
+    "estimated": "(estimado)",
+    "daysLeft": "Faltan {n} días",
+    "dueToday": "Vence hoy",
+    "overdue": "Vencido — llame ahora",
+    "startRecert": "Empezar mi renovación",
+    "changeTitle": "Qué decirles entre renovaciones",
+    "failuresTitle": "Por qué fallan las renovaciones (evítelas)",
+    "reportTitle": "Informe de mitad de período"
+  },
+  "recert": {
+    "title": "Su renovación, paso a paso",
+    "intro": "Renovar a tiempo mantiene sus beneficios sin interrupción. Le guío, y su progreso se guarda.",
+    "finishTitle": "Listo para renovar",
+    "finishBody": "Envíe su renovación en el sitio oficial (o por teléfono) antes de su fecha límite. Lleve sus notas y su prueba (identificación, ingresos recientes, alquiler y servicios)."
+  },
+  "reminders": {
+    "enable": "Recordarme en este teléfono",
+    "enabled": "Los recordatorios están activados",
+    "blocked": "Su teléfono bloqueó los recordatorios. Aún le mostraré sus fechas aquí.",
+    "calendar": "Agregar a mi calendario"
+  },
+  "privacy": {
+    "title": "Su privacidad y sus datos",
+    "minimal": "Pedimos lo menos posible, explicamos por qué, guardamos todo en su teléfono, y nunca vendemos su información.",
+    "stored": "Guardado en este teléfono ahora:",
+    "nothing": "Nada guardado todavía.",
+    "delete": "Borrar todo en este teléfono",
+    "deleteConfirm": "Esto borra todo lo guardado en este teléfono, incluyendo sus respuestas y fechas. No se puede deshacer. ¿Continuar?",
+    "deleted": "Listo. Todo lo guardado en este teléfono fue borrado.",
+    "fields": {
+      "profile": "Sus respuestas del hogar",
+      "application": "Sus notas y progreso de la solicitud",
+      "preparation": "La fecha de su entrevista",
+      "retention": "Sus fechas de renovación",
+      "settings": "Su idioma y estado elegidos"
+    }
+  },
+  "otherNeeds": {
+    "housing": "Ayuda con vivienda o renta",
+    "medical_coverage": "Cobertura de salud (Medicaid)",
+    "unemployment": "Desempleo",
+    "utility_assistance": "Ayuda con facturas de servicios",
+    "prescription_help": "Ayuda para pagar medicinas",
+    "childcare": "Ayuda con cuidado de niños",
+    "cash_assistance": "Asistencia en efectivo",
+    "wic": "WIC (comida para embarazadas y niños pequeños)"
+  },
+  "footer": {
+    "disclaimer": "El Navegador no es el gobierno ni un abogado. Le ayuda a usar el sistema real. Siempre confirme con el sitio oficial y una persona real."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "The Navigator — food assistance help",
+  "short_name": "Navigator",
+  "description": "Plain-language help to get food assistance (SNAP), step by step, in your language.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f5f0",
+  "theme_color": "#1f6f54",
+  "lang": "en",
+  "categories": ["health", "government", "social"],
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

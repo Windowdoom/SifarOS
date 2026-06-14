@@ -1,0 +1,198 @@
+{
+  "app": { "title": "The Navigator", "tagline": "Help getting food assistance, one step at a time." },
+  "lang": { "toggle": "Español", "name": "English" },
+  "nav": { "home": "Home", "discover": "Start", "apply": "Apply", "prepare": "Interview", "renew": "Renew" },
+  "help": {
+    "title": "Need a real person? You are never stuck in this app.",
+    "applyOfficial": "Apply on the official site",
+    "call": "Call",
+    "findFood": "Find food now — dial 211",
+    "legal": "Free legal help"
+  },
+  "common": {
+    "continue": "Continue", "back": "Back", "next": "Next", "save": "Save", "start": "Start",
+    "yes": "Yes", "no": "No", "skip": "Skip", "done": "Done", "cancel": "Cancel", "change": "Change",
+    "notSure": "I'm not sure", "optional": "(optional)", "loading": "One moment…"
+  },
+  "explain": { "button": "I don't understand", "title": "In plain words", "simpler": "Even simpler", "close": "Close" },
+  "verify": {
+    "banner": "These numbers are an unofficial estimate and still need to be checked against the official source. Always confirm with the official site and a real person."
+  },
+  "offline": { "note": "You're offline. You can still see your steps and dates, and estimates use the saved rules." },
+  "home": {
+    "greeting": "Welcome. I'm here to help you get food assistance.",
+    "choose": "What would you like to do?",
+    "discoverTitle": "See if I can get help",
+    "discoverDesc": "Tell me your situation. I'll estimate what you might get.",
+    "applyTitle": "Help me apply",
+    "applyDesc": "I'll walk you through it, step by step, in plain words.",
+    "prepareTitle": "Get ready for my interview",
+    "prepareDesc": "Know what they'll ask and what to bring.",
+    "renewTitle": "Keep my benefits (renewal)",
+    "renewDesc": "Never lose benefits to a missed renewal again.",
+    "privacy": "Your privacy & your data",
+    "stateLine": "Showing help for:",
+    "modelOff": "Smart help is off right now, so I'll use a few quick questions instead. Everything still works."
+  },
+  "state": {
+    "title": "Where do you live?",
+    "desc": "The rules are different in each state. Pick yours so everything I tell you is right for you.",
+    "change": "Change state",
+    "pick": "Choose your state"
+  },
+  "consent": {
+    "title": "Before we start",
+    "b1": "I help you use the real food-assistance system. I am not the government and not a lawyer.",
+    "b2": "I ask for the least information I can, and I tell you why each time.",
+    "b3": "What you enter is saved only on this phone. You can delete all of it anytime, in one tap.",
+    "b4": "I always show you the official site and a real phone number, so you're never stuck here.",
+    "agree": "I understand — let's start"
+  },
+  "discover": {
+    "title": "Tell me what's going on",
+    "prompt": "In your own words, what is happening? For example: \"I lost my job last month, I have two kids, and I'm behind on rent.\"",
+    "placeholder": "Type here…",
+    "mic": "Speak instead",
+    "listening": "Listening… tap to stop",
+    "submit": "See what I might get",
+    "useQuestions": "Answer a few quick questions instead",
+    "useText": "Type my situation instead",
+    "privacyNote": "What you type is used only to understand your situation. It is not saved on our side. We save only your answers, on this phone.",
+    "calc": "See my estimate",
+    "qIntro": "You can skip any question. The more you share, the better the estimate.",
+    "qHousehold": "How many people live and eat together in your home? Count yourself.",
+    "qIncome": "About how much money comes into your home each month, before taxes?",
+    "qEarned": "How much of that is from a job or self-employment?",
+    "qRent": "How much do you pay for rent or mortgage each month?",
+    "qUtilities": "How much for utilities each month? (gas, electric, water, phone)",
+    "qDepcare": "Do you pay for childcare or adult care so you can work? How much a month?",
+    "qElderly": "Is anyone in your home 60 or older, or living with a disability?",
+    "qImmigration": "Is anyone applying not a U.S. citizen, or unsure about their status?",
+    "perMonth": "per month",
+    "people": "people"
+  },
+  "result": {
+    "likely": "You likely qualify",
+    "maybe": "You might qualify — it's worth applying",
+    "unlikely": "You may not qualify right now",
+    "unknown": "I need a little more to estimate",
+    "confidence": "How sure I am:",
+    "confLow": "not very sure",
+    "confMedium": "somewhat sure",
+    "confHigh": "fairly sure",
+    "benefit": "Rough monthly amount",
+    "estimatedOnPhone": "Estimated on your phone using the saved rules.",
+    "nextApply": "Start my application",
+    "nextBring": "See what to bring",
+    "again": "Try again",
+    "otherTitle": "Other help you mentioned",
+    "otherNote": "The Navigator only helps with food (SNAP) right now. For the things below, dial 211 — a real person can point you the right way."
+  },
+  "human": {
+    "title": "This part needs a real person",
+    "body": "Some questions can hurt your case if they're answered wrong. Please talk to a free helper about:",
+    "cta": "Get free legal help"
+  },
+  "apply": {
+    "title": "Help me apply",
+    "intro": "I'll explain each part in plain words. When you're ready, you'll finish on the official site — I'll show you exactly where. Your place is saved automatically.",
+    "step": "Step",
+    "of": "of",
+    "why": "Why they ask this",
+    "docs": "Papers that help here",
+    "mistakes": "Don't get tripped up",
+    "notes": "Your notes (saved on this phone only)",
+    "notesPlaceholder": "Jot down your answer so you have it ready…",
+    "resume": "Pick up where you left off",
+    "finishTitle": "You're ready to submit",
+    "finishBody": "Finish your application on the official site. Bring your notes and papers. Benefits usually start from the day you apply, so don't wait even if a paper is missing.",
+    "finishCta": "Go to the official site to submit",
+    "checklist": "Your document checklist",
+    "haveIt": "I have it",
+    "official": "What the form calls it"
+  },
+  "docs": { "how": "Don't have it? Here's what to do", "why": "Why" },
+  "prepare": {
+    "title": "Get ready for your interview",
+    "intro": "After you apply, there is usually a short interview. Missing it is the most common reason eligible people get denied. Let's make sure you're ready.",
+    "required": "Yes — there is an interview.",
+    "how": "How it happens",
+    "when": "When it happens",
+    "ask": "What they will ask",
+    "bring": "Have these ready",
+    "tips": "Tips that help",
+    "setDate": "Add my interview date",
+    "dateLabel": "When is your interview? (if you know)",
+    "saved": "Saved",
+    "checklistTitle": "Before the call — get ready",
+    "practiceTitle": "Practice the questions",
+    "practiceIntro": "Read each question and think about your honest answer. Tap a question to see how to answer it.",
+    "answerHint": "How to answer",
+    "yourAnswer": "Your answer (saved on this phone only)",
+    "ifMissedTitle": "If you miss the call"
+  },
+  "renew": {
+    "title": "Keep your benefits",
+    "intro": "Losing benefits to a missed renewal is one of the most common — and most preventable — problems. Let's make sure it doesn't happen to you.",
+    "cert": "How long you're approved",
+    "report": "Mid-period check-in",
+    "recert": "Renewal (recertification)",
+    "ifMissed": "If you miss it",
+    "addDates": "Add my dates",
+    "enrolledLabel": "Date you were approved (on your approval notice)",
+    "certEndLabel": "Date your benefits end (from your notice, if you have it)",
+    "computeNote": "No exact end date? I'll estimate from the day you were approved — but always trust your official notice over my estimate.",
+    "upcoming": "Your important dates",
+    "renewalDue": "Renewal due",
+    "reportDue": "Check-in due",
+    "estimated": "(estimated)",
+    "daysLeft": "{n} days left",
+    "dueToday": "Due today",
+    "overdue": "Past due — call now",
+    "startRecert": "Start my renewal",
+    "changeTitle": "What to tell them between renewals",
+    "failuresTitle": "Why renewals fail (avoid these)",
+    "reportTitle": "Mid-period report"
+  },
+  "recert": {
+    "title": "Your renewal, step by step",
+    "intro": "Renewing on time keeps your benefits with no gap. I'll walk you through it, and your place is saved.",
+    "finishTitle": "Ready to renew",
+    "finishBody": "Send your renewal on the official site (or by phone) before your deadline. Bring your notes and your proof (ID, recent income, rent and utilities)."
+  },
+  "reminders": {
+    "enable": "Remind me on this phone",
+    "enabled": "Reminders are on",
+    "blocked": "Your phone blocked reminders. I'll still show your dates here.",
+    "calendar": "Add to my calendar"
+  },
+  "privacy": {
+    "title": "Your privacy & your data",
+    "minimal": "We ask for the least we can, explain why, keep everything on your phone, and never sell your information.",
+    "stored": "Saved on this phone right now:",
+    "nothing": "Nothing saved yet.",
+    "delete": "Delete everything on this phone",
+    "deleteConfirm": "This erases everything saved on this phone, including your answers and dates. It cannot be undone. Continue?",
+    "deleted": "Done. Everything saved on this phone was deleted.",
+    "fields": {
+      "profile": "Your household answers",
+      "application": "Your application notes and progress",
+      "preparation": "Your interview date",
+      "retention": "Your renewal dates",
+      "settings": "Your language and state choice"
+    }
+  },
+  "otherNeeds": {
+    "housing": "Housing or rent help",
+    "medical_coverage": "Health coverage (Medicaid)",
+    "unemployment": "Unemployment",
+    "utility_assistance": "Help with utility bills",
+    "prescription_help": "Help paying for medicine",
+    "childcare": "Childcare help",
+    "cash_assistance": "Cash assistance",
+    "wic": "WIC (food for pregnant moms and young kids)"
+  },
+  "footer": {
+    "disclaimer": "The Navigator is not the government and not a lawyer. It helps you use the real system. Always confirm with the official site and a real person."
+  }
+}
