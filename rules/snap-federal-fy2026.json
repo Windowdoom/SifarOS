@@ -1,0 +1,188 @@
+{
+  "_meta": {
+    "title": "Federal SNAP financial standards, FY2026",
+    "appliesTo": "48 contiguous states + DC (Alaska, Hawaii, Guam, USVI differ and need their own files)",
+    "fiscalYear": "FY2026",
+    "effectiveDate": "2025-10-01",
+    "expiresDate": "2026-09-30",
+    "VERIFICATION_NOTICE": "This is SEED DATA assembled from public sources and is marked verified:false. Per the Navigator build contract, the operator MUST confirm every value below against the cited authoritative source before relying on it in production. The Navigator never presents a value to a user as fact unless verified:true; until then it labels results as an unofficial estimate and routes the user to the official channel and a human.",
+    "primarySources": [
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    ]
+  },
+
+  "program": {
+    "code": "SNAP",
+    "name": "SNAP",
+    "nameLong": "Supplemental Nutrition Assistance Program",
+    "entitlement": true,
+    "_note": "SNAP is a federal entitlement: anyone who is eligible can receive it. There is no cap on the number of recipients."
+  },
+
+  "incomeStandards": {
+    "_comment": "Income tests by household size. Gross = before deductions; Net = after allowable deductions. Households WITHOUT an elderly (age 60+) or disabled member must pass BOTH the gross and net tests. Households WITH an elderly or disabled member are exempt from the gross income test and must pass only the net test. NOTE: A state with Broad-Based Categorical Eligibility (BBCE) may raise or remove the gross income test - see the state overlay file.",
+
+    "grossMonthlyIncomeLimit_130pctFPL": {
+      "unit": "USD/month",
+      "basis": "130% of the 2025 Federal Poverty Guidelines",
+      "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": {
+        "1": 1696,
+        "2": 2292,
+        "3": 2888,
+        "4": 3483,
+        "5": 4079,
+        "6": 4675,
+        "7": 5271,
+        "8": 5867
+      },
+      "eachAdditionalPerson": 596
+    },
+
+    "netMonthlyIncomeLimit_100pctFPL": {
+      "unit": "USD/month",
+      "basis": "100% of the 2025 Federal Poverty Guidelines",
+      "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": {
+        "1": 1305,
+        "2": 1763,
+        "3": 2221,
+        "4": 2680,
+        "5": 3138,
+        "6": 3596,
+        "7": 4055,
+        "8": 4513
+      },
+      "eachAdditionalPerson": 459
+    }
+  },
+
+  "maxAllotment": {
+    "_comment": "Maximum monthly SNAP benefit by household size. The actual benefit is the maximum minus 30% of the household's net income. A household at or below the net income limit with little net income receives at or near the maximum.",
+    "unit": "USD/month",
+    "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+    "effectiveDate": "2025-10-01",
+    "expiresDate": "2026-09-30",
+    "verified": false,
+    "bySize": {
+      "1": 298,
+      "2": 546,
+      "3": 785,
+      "4": 994,
+      "5": 1183,
+      "6": 1421,
+      "7": 1571,
+      "8": 1789
+    },
+    "eachAdditionalPerson": 218
+  },
+
+  "minimumBenefit": {
+    "unit": "USD/month",
+    "appliesToHouseholdSizes": [1, 2],
+    "value": 24,
+    "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+    "effectiveDate": "2025-10-01",
+    "expiresDate": "2026-09-30",
+    "verified": false
+  },
+
+  "deductions": {
+    "_comment": "Deductions are subtracted from gross income to compute net income. The Navigator's screener uses these only to estimate; the county makes the official determination.",
+
+    "earnedIncomeDeductionPct": {
+      "value": 20,
+      "unit": "percent",
+      "appliesTo": "earned (wage/self-employment) income only",
+      "source": "7 CFR 273.9(d); https://www.fns.usda.gov/snap/recipient/eligibility",
+      "effectiveDate": "2025-10-01",
+      "verified": false
+    },
+
+    "standardDeduction": {
+      "unit": "USD/month",
+      "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": {
+        "1": 209,
+        "2": 209,
+        "3": 209,
+        "4": 223,
+        "5": 261,
+        "6": 299
+      },
+      "sixOrMore": 299
+    },
+
+    "maxExcessShelterDeduction": {
+      "value": 744,
+      "unit": "USD/month",
+      "_note": "Shelter costs above 50% of income (after other deductions) are deductible, capped at this amount. The cap does NOT apply to households with an elderly or disabled member.",
+      "source": "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false
+    }
+  },
+
+  "benefitFormula": {
+    "_comment": "Statutory SNAP formula constants (Food and Nutrition Act; 7 CFR 273.10). Stable across states and years, but kept here as data so the reasoning/screener code contains NO eligibility numbers. benefit = maxAllotment - (netIncomeContributionRate * net income). Excess shelter = shelter+utilities - (shelterIncomeThresholdRate * income after other deductions).",
+    "netIncomeContributionRate": { "value": 0.30, "source": "7 CFR 273.10(e)", "verified": false },
+    "shelterIncomeThresholdRate": { "value": 0.50, "source": "7 CFR 273.9(d)(6)", "verified": false }
+  },
+
+  "householdDefinition": {
+    "_comment": "Plain-language description of who counts as one SNAP household. Used to help the user answer the household-size question correctly. This is concept guidance, not a dollar figure.",
+    "rule": "A SNAP household is everyone who lives together AND buys and prepares food together. People who live together but buy and make their own food separately can be separate households. Spouses, and most children under 22 living with their parents, must be in the same household as their parents.",
+    "source": "7 CFR 273.1; https://www.fns.usda.gov/snap/recipient/eligibility",
+    "verified": false
+  },
+
+  "elderlyOrDisabledAge": {
+    "value": 60,
+    "unit": "years",
+    "_note": "A household member age 60 or older counts as 'elderly' for SNAP, which changes the income tests (gross test is waived) and uncaps the shelter deduction.",
+    "source": "https://www.fns.usda.gov/snap/recipient/eligibility",
+    "verified": false
+  },
+
+  "routeToHumanTopics": {
+    "_comment": "Subjects the Navigator must NOT try to resolve. When the user's situation touches any of these, the Navigator explains the situation plainly and connects the person to the human/legal resource named in the state overlay. It never gives a determination on these.",
+    "topics": [
+      {
+        "id": "immigration_status",
+        "en": "Immigration or citizenship status and how it affects eligibility",
+        "es": "Estado migratorio o de ciudadanía y cómo afecta la elegibilidad"
+      },
+      {
+        "id": "disability_determination",
+        "en": "Whether someone qualifies as disabled",
+        "es": "Si alguien califica como persona con discapacidad"
+      },
+      {
+        "id": "appeal_or_denial",
+        "en": "Appealing a denial or a reduction in benefits (a 'fair hearing')",
+        "es": "Apelar una denegación o reducción de beneficios (una 'audiencia imparcial')"
+      },
+      {
+        "id": "fraud_or_overpayment",
+        "en": "An overpayment notice, fraud accusation, or being asked to repay benefits",
+        "es": "Un aviso de sobrepago, acusación de fraude, o que le pidan devolver beneficios"
+      },
+      {
+        "id": "child_support_or_custody",
+        "en": "Child support, custody, or who can claim a child",
+        "es": "Manutención infantil, custodia, o quién puede reclamar a un menor"
+      }
+    ]
+  }
+}

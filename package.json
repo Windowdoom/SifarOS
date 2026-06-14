@@ -1,0 +1,17 @@
+{
+  "name": "the-navigator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Navigator — a plain-language, multilingual companion that helps people discover, apply for, prepare for, and keep food assistance (SNAP). Phase 1: California, Louisiana, Texas.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "validate": "node scripts/validate-rules.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "node scripts/validate-rules.mjs && node scripts/smoke.mjs"
+  },
+  "license": "CC0-1.0"
+}

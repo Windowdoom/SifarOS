@@ -1,0 +1,113 @@
+{
+  "_meta": {
+    "title": "CalFresh (California SNAP) state overlay, FY2026",
+    "overlaysOnto": "snap-federal-fy2026.json + snap-common-content-en-es.json",
+    "VERIFICATION_NOTICE": "SEED DATA, verified:false. The operator MUST confirm every channel, phone number, certification period, and income figure against the cited California source before production use. Believed current as of 2026-06 but NOT operator-verified.",
+    "primarySources": [
+      "https://www.cdss.ca.gov/calfresh",
+      "https://www.cdss.ca.gov/inforesources/calfresh/contacts",
+      "https://benefitscal.com",
+      "https://www.getcalfresh.org",
+      "https://calfresh.guide"
+    ]
+  },
+
+  "jurisdiction": {
+    "code": "us-ca",
+    "displayName": "California",
+    "programName": "CalFresh",
+    "programNameLong": "CalFresh (California's name for SNAP food assistance)"
+  },
+
+  "languages": [
+    { "code": "en", "label": "English" },
+    { "code": "es", "label": "Español" }
+  ],
+
+  "eligibilityModel": {
+    "_comment": "California uses Broad-Based Categorical Eligibility (called Modified Categorical Eligibility / MCE in California): gross income limit raised to 200% FPL and NO asset/resource test for most households. The net income test (100% FPL, from the federal file) still applies. Households with an elderly (60+) or disabled member are exempt from the gross income test.",
+    "type": "BBCE",
+    "grossIncomeBasisPctFPL": 200,
+    "assetTest": false,
+    "assetTestNote": {
+      "en": "California does not count your savings or property for most CalFresh cases. You do not need to spend down your savings to qualify.",
+      "es": "California no cuenta sus ahorros ni propiedades en la mayoría de los casos de CalFresh. No necesita gastar sus ahorros para calificar."
+    },
+    "grossMonthlyIncomeLimit": {
+      "unit": "USD/month",
+      "basis": "200% of the 2025 Federal Poverty Guidelines (California MCE gross income limit)",
+      "source": "https://basicneeds.ucmerced.edu/sites/g/files/ufvvjh411/f/documents/CalFreshFiles/ffy_2026_cola_acin_i-46_25.pdf",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": { "1": 2610, "2": 3526, "3": 4442, "4": 5360, "5": 6276, "6": 7192, "7": 8110, "8": 9026 },
+      "eachAdditionalPerson": 918
+    }
+  },
+
+  "channels": {
+    "officialApplicationPortal": {
+      "label": "BenefitsCal",
+      "url": "https://benefitscal.com",
+      "description": { "en": "The official California website to apply for CalFresh and manage your case.", "es": "El sitio web oficial de California para solicitar CalFresh y administrar su caso." },
+      "verified": false, "source": "https://www.cdss.ca.gov/calfresh"
+    },
+    "assistedApplication": {
+      "label": "GetCalFresh.org",
+      "url": "https://www.getcalfresh.org",
+      "description": { "en": "A free, easier way to apply for CalFresh, built by the nonprofit Code for America. Works in English and Spanish.", "es": "Una forma gratuita y más fácil de solicitar CalFresh, creada por la organización sin fines de lucro Code for America. Funciona en inglés y español." },
+      "verified": false, "source": "https://www.getcalfresh.org"
+    },
+    "statewideInfoLine": {
+      "label": "CalFresh Info Line",
+      "phone": "1-877-847-3663",
+      "phoneSpoken": "1-877-847-FOOD",
+      "languages": ["en", "es"],
+      "description": { "en": "Call to learn how to apply in your county. Enter your ZIP code to hear your county's information. English and Spanish.", "es": "Llame para saber cómo solicitar en su condado. Ingrese su código postal para escuchar la información de su condado. Inglés y español." },
+      "verified": false, "source": "https://www.cdss.ca.gov/inforesources/calfresh/contacts"
+    },
+    "communityResourceLine": {
+      "label": "211", "phone": "211",
+      "description": { "en": "Dial 211 for free, confidential help finding food, housing, and other local resources. Many languages.", "es": "Marque 211 para ayuda gratuita y confidencial para encontrar comida, vivienda y otros recursos locales. Muchos idiomas." },
+      "verified": false, "source": "https://www.211.org"
+    },
+    "legalHelp": {
+      "label": "LawHelpCA", "url": "https://www.lawhelpca.org", "altPhone": "211",
+      "description": { "en": "Free legal help with benefits problems, denials, and appeals. If you are denied or your benefits are cut, you have the right to a free 'fair hearing'.", "es": "Ayuda legal gratuita con problemas de beneficios, denegaciones y apelaciones. Si le niegan o reducen sus beneficios, tiene derecho a una 'audiencia imparcial' gratuita." },
+      "verified": false, "source": "https://calfresh.guide"
+    },
+    "emergencyNote": {
+      "en": "If you have almost no money and need food right away, ask the county about 'expedited' CalFresh - some households can get benefits within 3 days. Also call 211 to find a food bank near you today.",
+      "es": "Si casi no tiene dinero y necesita comida de inmediato, pregunte al condado sobre CalFresh 'acelerado' (expedited): algunos hogares pueden recibir beneficios en 3 días. También llame al 211 para encontrar un banco de alimentos cerca de usted hoy."
+    }
+  },
+
+  "interview": {
+    "required": true,
+    "how": {
+      "en": "In most counties the interview is a phone call. The county worker calls YOU. The call may come from a blocked, unknown, or 'No Caller ID' number, so try to answer unknown calls after you apply. If you can't do a phone call, you can ask to be seen in person.",
+      "es": "En la mayoría de los condados la entrevista es una llamada telefónica. El trabajador del condado le llama a USTED. La llamada puede venir de un número bloqueado, desconocido o 'sin identificador', así que trate de contestar llamadas desconocidas después de solicitar. Si no puede hacer una llamada, puede pedir ser atendido en persona."
+    },
+    "when": {
+      "en": "Usually within about 1 to 2 weeks after you apply, during the 30-day decision period.",
+      "es": "Normalmente dentro de aproximadamente 1 a 2 semanas después de solicitar, durante el período de decisión de 30 días."
+    }
+  },
+
+  "retention": {
+    "certificationPeriodMonths": { "value": 12, "_note": "Most CalFresh households are certified for 12 months and must recertify (renew) at the end.", "source": "https://calfresh.guide", "verified": false },
+    "certificationPeriodMonthsElderlyDisabledNoEarnedIncome": { "value": 24, "_note": "Households where all members are elderly or disabled with no earned income may be certified for 24 months.", "source": "https://calfresh.guide", "verified": false },
+    "periodicReport": {
+      "name": "SAR 7",
+      "nameLong": "Semi-Annual Report (SAR 7)",
+      "dueAtMonth": 6,
+      "description": { "en": "About halfway through your certification (around month 6), most households must send a short report called the SAR 7 to update income and household changes. Missing it can stop your benefits.", "es": "Aproximadamente a la mitad de su certificación (cerca del mes 6), la mayoría de los hogares deben enviar un informe corto llamado SAR 7 para actualizar ingresos y cambios del hogar. No enviarlo puede detener sus beneficios." },
+      "source": "https://www.getcalfresh.org/en/sar7info/", "verified": false
+    },
+    "recertification": {
+      "description": { "en": "Before your certification period ends, you must renew (recertify) to keep CalFresh. This usually means a renewal form and another short interview. If you renew on time, your benefits continue without a gap.", "es": "Antes de que termine su período de certificación, debe renovar (recertificar) para mantener CalFresh. Esto normalmente significa un formulario de renovación y otra entrevista corta. Si renueva a tiempo, sus beneficios continúan sin interrupción." },
+      "ifMissed": { "en": "If you miss the renewal, your CalFresh stops and you have to start over. If it recently stopped, call your county fast - if you renew within 30 days you may be able to restart without a brand-new application.", "es": "Si pierde la renovación, su CalFresh se detiene y tiene que empezar de nuevo. Si se detuvo recientemente, llame a su condado rápido: si renueva dentro de 30 días puede reiniciar sin una solicitud completamente nueva." },
+      "source": "https://calfresh.guide", "verified": false
+    }
+  }
+}

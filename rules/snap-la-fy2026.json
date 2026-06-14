@@ -1,0 +1,107 @@
+{
+  "_meta": {
+    "title": "Louisiana SNAP state overlay, FY2026",
+    "overlaysOnto": "snap-federal-fy2026.json + snap-common-content-en-es.json",
+    "VERIFICATION_NOTICE": "SEED DATA, verified:false. The operator MUST confirm every channel, phone number, certification period, resource/asset rule, and income figure against the cited Louisiana DCFS source before production use. Believed current as of 2026-06 but NOT operator-verified.",
+    "primarySources": [
+      "https://www.dcfs.louisiana.gov/page/snap",
+      "https://dcfs.louisiana.gov/news/snap-income-thresholds-deductions-and-resource-limits-increase-october-1",
+      "https://cafe-cp.dcfs.la.gov/selfservice",
+      "https://louisianalawhelp.org"
+    ]
+  },
+
+  "jurisdiction": {
+    "code": "us-la",
+    "displayName": "Louisiana",
+    "programName": "SNAP",
+    "programNameLong": "SNAP food assistance (Louisiana Department of Children & Family Services)"
+  },
+
+  "languages": [
+    { "code": "en", "label": "English" },
+    { "code": "es", "label": "Español" }
+  ],
+
+  "eligibilityModel": {
+    "_comment": "Louisiana uses Broad-Based Categorical Eligibility (BBCE): gross income limit raised to 200% FPL. Louisiana DCFS still references 'resource limits' for some cases, so the savings/resource rule can vary by household - do not assume. The net income test (100% FPL, federal file) still applies. Households with an elderly (60+) or disabled member are exempt from the gross income test.",
+    "type": "BBCE",
+    "grossIncomeBasisPctFPL": 200,
+    "assetTest": "varies",
+    "assetTestNote": {
+      "en": "Louisiana raises the income limit for most households, but its rules on savings or resources can vary. Don't assume you have too much saved to qualify - ask DCFS or apply and let them decide.",
+      "es": "Louisiana eleva el límite de ingresos para la mayoría de los hogares, pero sus reglas sobre ahorros o recursos pueden variar. No suponga que tiene demasiado ahorrado para calificar: pregunte a DCFS o solicite y deje que ellos decidan."
+    },
+    "grossMonthlyIncomeLimit": {
+      "unit": "USD/month",
+      "basis": "200% of the 2025 Federal Poverty Guidelines (Louisiana BBCE gross income limit)",
+      "source": "https://dcfs.louisiana.gov/news/snap-income-thresholds-deductions-and-resource-limits-increase-october-1",
+      "effectiveDate": "2025-10-01",
+      "expiresDate": "2026-09-30",
+      "verified": false,
+      "bySize": { "1": 2610, "2": 3526, "3": 4442, "4": 5360, "5": 6276, "6": 7192, "7": 8110, "8": 9026 },
+      "eachAdditionalPerson": 918
+    }
+  },
+
+  "channels": {
+    "officialApplicationPortal": {
+      "label": "Louisiana CAFÉ",
+      "url": "https://cafe-cp.dcfs.la.gov/selfservice",
+      "description": { "en": "Louisiana's official self-service website to apply for SNAP, check your case, and send your renewal.", "es": "El sitio web oficial de autoservicio de Louisiana para solicitar SNAP, revisar su caso y enviar su renovación." },
+      "verified": false, "source": "https://www.dcfs.louisiana.gov/page/snap"
+    },
+    "statewideInfoLine": {
+      "label": "DCFS Customer Service (LA HELP U)",
+      "phone": "1-888-524-3578",
+      "phoneSpoken": "1-888-LA-HELP-U",
+      "hours": "Monday-Friday, 7:30 a.m. to 6 p.m.",
+      "languages": ["en"],
+      "description": { "en": "Call Louisiana DCFS to apply, ask questions, or reschedule a missed interview.", "es": "Llame a DCFS de Louisiana para solicitar, hacer preguntas o reprogramar una entrevista perdida. Puede pedir ayuda en español." },
+      "verified": false, "source": "https://www.dcfs.louisiana.gov/page/472"
+    },
+    "communityResourceLine": {
+      "label": "211", "phone": "211",
+      "description": { "en": "Dial 211 for free, confidential help finding food, housing, and other local resources in Louisiana.", "es": "Marque 211 para ayuda gratuita y confidencial para encontrar comida, vivienda y otros recursos locales en Louisiana." },
+      "verified": false, "source": "https://www.211.org"
+    },
+    "legalHelp": {
+      "label": "Louisiana Law Help", "url": "https://louisianalawhelp.org", "altPhone": "211",
+      "description": { "en": "Free legal help with SNAP problems, denials, and appeals. If you are denied or your benefits are cut, you have the right to a free 'fair hearing'.", "es": "Ayuda legal gratuita con problemas de SNAP, denegaciones y apelaciones. Si le niegan o reducen sus beneficios, tiene derecho a una 'audiencia imparcial' gratuita." },
+      "verified": false, "source": "https://louisianalawhelp.org/resource/reinstating-snap-benefits"
+    },
+    "emergencyNote": {
+      "en": "If you have almost no money and need food right away, ask DCFS about 'expedited' SNAP - some households can get benefits within a few days. Also call 211 to find a food bank near you today.",
+      "es": "Si casi no tiene dinero y necesita comida de inmediato, pregunte a DCFS sobre SNAP 'acelerado' (expedited): algunos hogares pueden recibir beneficios en pocos días. También llame al 211 para encontrar un banco de alimentos cerca de usted hoy."
+    }
+  },
+
+  "interview": {
+    "required": true,
+    "how": {
+      "en": "The interview is a phone call. The worker calls YOU. In Louisiana the call often comes from a (318) area code and may show on your phone as 'Spam Risk' or 'Spam Likely' - answer it anyway, it may be DCFS. If you miss it, you can reschedule on the CAFÉ portal or by calling 1-888-524-3578.",
+      "es": "La entrevista es una llamada telefónica. El trabajador le llama a USTED. En Louisiana la llamada a menudo viene de un código de área (318) y puede mostrarse en su teléfono como 'Spam Risk' o 'Spam Likely': conteste de todos modos, puede ser DCFS. Si la pierde, puede reprogramar en el portal CAFÉ o llamando al 1-888-524-3578."
+    },
+    "when": {
+      "en": "Usually during the 30-day decision period after you apply. Watch for the call in the first couple of weeks.",
+      "es": "Normalmente durante el período de decisión de 30 días después de solicitar. Esté atento a la llamada en las primeras semanas."
+    },
+    "stateTips": [
+      { "en": "Save 1-888-524-3578 in your phone so you recognize DCFS, and don't ignore calls from a 318 number after you apply.", "es": "Guarde el 1-888-524-3578 en su teléfono para reconocer a DCFS, y no ignore llamadas de un número 318 después de solicitar." }
+    ]
+  },
+
+  "retention": {
+    "certificationPeriodMonths": { "value": 12, "_note": "Many Louisiana SNAP households are certified for 12 months; your approval notice lists your exact end date. Confirm on your notice.", "source": "https://www.dcfs.louisiana.gov/page/472", "verified": false },
+    "periodicReport": {
+      "name": null,
+      "description": { "en": "Louisiana may ask you for a mid-period update to confirm your information is still correct. Watch your mail and your CAFÉ account, and respond to anything DCFS sends so your benefits don't stop.", "es": "Louisiana puede pedirle una actualización a mitad del período para confirmar que su información sigue siendo correcta. Esté atento a su correo y su cuenta CAFÉ, y responda a todo lo que DCFS le envíe para que sus beneficios no se detengan." },
+      "source": "https://www.dcfs.louisiana.gov/page/472", "verified": false
+    },
+    "recertification": {
+      "description": { "en": "About one month before your certification period ends, DCFS mails a Notice of Expiration. That means it's time to renew (recertify). Renew through the CAFÉ portal or by phone before the deadline so your SNAP continues without a gap.", "es": "Aproximadamente un mes antes de que termine su período de certificación, DCFS envía un Aviso de Expiración. Eso significa que es hora de renovar (recertificar). Renueve a través del portal CAFÉ o por teléfono antes de la fecha límite para que su SNAP continúe sin interrupción." },
+      "ifMissed": { "en": "If you miss the renewal, your SNAP stops and you may have to start a new application. If it recently stopped, call 1-888-524-3578 right away to ask what you can still do.", "es": "Si pierde la renovación, su SNAP se detiene y puede tener que iniciar una nueva solicitud. Si se detuvo recientemente, llame al 1-888-524-3578 de inmediato para preguntar qué puede hacer todavía." },
+      "source": "https://louisianalawhelp.org/resource/reinstating-snap-benefits", "verified": false
+    }
+  }
+}

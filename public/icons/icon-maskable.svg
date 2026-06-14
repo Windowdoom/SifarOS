@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="The Navigator compass">
+  <rect width="512" height="512" fill="#1f6f54"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#e3f0ea" stroke-width="16"/>
+  <circle cx="256" cy="256" r="11" fill="#e3f0ea"/>
+  <polygon points="256,150 290,256 256,242 222,256" fill="#f2c14e"/>
+  <polygon points="256,362 222,256 256,270 290,256" fill="#e3f0ea"/>
+</svg>
