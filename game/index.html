@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>NEON DRIFT — Arena Shooter</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>%F0%9F%9A%80</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="960" height="600"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-left">
+        <div class="stat"><span class="label">SCORE</span><span id="score">0</span></div>
+        <div class="stat"><span class="label">WAVE</span><span id="wave">1</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="stat"><span class="label">BEST</span><span id="best">0</span></div>
+      </div>
+      <div id="healthbar"><div id="healthfill"></div></div>
+    </div>
+
+    <!-- Title screen -->
+    <div id="title" class="overlay">
+      <h1>NEON DRIFT</h1>
+      <p class="tag">Survive the swarm. Drift. Upgrade. Repeat.</p>
+      <button id="startBtn" class="btn">PLAY</button>
+      <div class="controls">
+        <p><b>WASD</b> / arrows — move &nbsp;·&nbsp; <b>Mouse</b> — aim &nbsp;·&nbsp; <b>Click / Space</b> — fire</p>
+        <p><b>Shift</b> — dash &nbsp;·&nbsp; <b>P</b> — pause</p>
+      </div>
+    </div>
+
+    <!-- Upgrade screen -->
+    <div id="upgrade" class="overlay hidden">
+      <h2>WAVE CLEARED</h2>
+      <p class="tag">Choose an upgrade</p>
+      <div id="cards"></div>
+    </div>
+
+    <!-- Game over -->
+    <div id="gameover" class="overlay hidden">
+      <h2>YOU DIED</h2>
+      <p class="tag" id="finalScore">Score: 0</p>
+      <button id="retryBtn" class="btn">RETRY</button>
+    </div>
+
+    <!-- Pause -->
+    <div id="pause" class="overlay hidden">
+      <h2>PAUSED</h2>
+      <p class="tag">Press <b>P</b> to resume</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
