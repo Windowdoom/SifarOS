@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#1a1730" />
+<link rel="manifest" href="app.webmanifest" />
+<title>Whisper — a little town that talks</title>
+<style>
+  :root{
+    --bg:#141225; --panel:#1d1a33; --panel2:#26224180; --ink:#efeaff; --muted:#a79fce;
+    --line:#3a3560; --good:#6fd6a0; --bad:#e88aa8; --warm:#f2c67a; --accent:#8f7bff;
+    --edge:#4a4570; --ring:#8f7bff;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 800px at 70% -10%, #221d3f 0%, var(--bg) 55%);
+    color:var(--ink); font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    padding:10px 18px; display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid var(--line); background:#17142b99; backdrop-filter:blur(4px);
+  }
+  header h1{font-size:17px; margin:0; letter-spacing:.5px; font-weight:600}
+  header h1 small{color:var(--muted); font-weight:400; font-size:12px; margin-left:6px}
+  .stat{margin-left:auto; display:flex; gap:16px; align-items:center; font-size:13px}
+  .stat b{color:var(--warm)}
+  #wrap{flex:1; display:flex; min-height:0}
+  #stage{flex:1; position:relative; min-width:0}
+  canvas{display:block; width:100%; height:100%}
+  #side{
+    width:340px; border-left:1px solid var(--line); background:var(--panel);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .sec{padding:12px 14px; border-bottom:1px solid var(--line)}
+  .sec h2{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted)}
+  .goal{font-size:13px; line-height:1.45}
+  .bar{height:8px; border-radius:5px; background:#0002; overflow:hidden; margin-top:8px; border:1px solid var(--line)}
+  .bar > i{display:block; height:100%; background:linear-gradient(90deg,var(--good),var(--warm)); width:0%; transition:width .5s}
+  #feed{flex:1; overflow:auto; padding:6px 14px; font-size:12.5px; line-height:1.5}
+  #feed .row{padding:5px 0; border-bottom:1px dashed #ffffff10}
+  #feed .who{color:var(--accent); font-weight:600}
+  #feed .twist{color:var(--warm)}
+  #feed .up{color:var(--good)} #feed .down{color:var(--bad)}
+  .npc-name{font-weight:600}
+  .traits{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px}
+  .tag{font-size:10.5px; padding:2px 7px; border-radius:20px; background:var(--panel2); border:1px solid var(--line); color:var(--muted)}
+  button{
+    font:inherit; color:var(--ink); background:var(--accent); border:none; border-radius:9px;
+    padding:9px 14px; cursor:pointer; font-weight:600; font-size:13px; transition:filter .15s, transform .05s;
+  }
+  button:hover{filter:brightness(1.12)} button:active{transform:translateY(1px)}
+  button.ghost{background:transparent; border:1px solid var(--line); color:var(--muted); font-weight:500}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  select{font:inherit; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 8px; width:100%}
+  .field{margin:8px 0}
+  .field label{display:block; font-size:11px; color:var(--muted); margin-bottom:4px; letter-spacing:.4px}
+  .two{display:flex; gap:8px} .two > *{flex:1}
+  .hint{font-size:11.5px; color:var(--muted); line-height:1.45}
+  .center{display:flex; gap:10px; align-items:center}
+  #whisperBox{opacity:.5; pointer-events:none}
+  #whisperBox.on{opacity:1; pointer-events:auto}
+  .belief-line{display:flex; justify-content:space-between; font-size:12px; padding:2px 0; color:var(--muted)}
+  .belief-line b{color:var(--ink); font-weight:500}
+  .v-pos{color:var(--good)} .v-neg{color:var(--bad)}
+  #overlay{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:#0b0a17e0; backdrop-filter:blur(3px); z-index:5; text-align:center; padding:24px;
+  }
+  #overlay .card{max-width:440px}
+  #overlay h2{font-size:26px; margin:0 0 8px}
+  #overlay p{color:var(--muted); line-height:1.6; font-size:14px}
+  .legend{position:absolute; left:14px; bottom:12px; font-size:11px; color:var(--muted); background:#0006; padding:8px 10px; border-radius:8px; border:1px solid var(--line); line-height:1.6}
+  .swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1>Whisper <small>a little town that talks</small></h1>
+  <div class="stat">
+    <span>Day <b id="dayNum">1</b> / <span id="dayMax">12</span></span>
+    <span>Whispers left: <b id="whLeft">2</b></span>
+    <button id="advBtn">Let the day unfold ▸</button>
+    <button id="restartBtn" class="ghost">Restart</button>
+  </div>
+</header>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div class="legend">
+      <div><span class="swatch" style="background:var(--good)"></span>warm feelings &nbsp; <span class="swatch" style="background:var(--bad)"></span>cool feelings</div>
+      <div>edge thickness = how much they trust each other</div>
+      <div>click a townsfolk to look inside their heart</div>
+    </div>
+    <div id="overlay"><div class="card">
+      <h2 id="ovTitle"></h2><p id="ovBody"></p>
+      <div style="margin-top:16px"><button onclick="Game.reset()">Play again</button></div>
+    </div></div>
+  </div>
+  <div id="side">
+    <div class="sec">
+      <h2>Your quiet task</h2>
+      <div class="goal" id="goalText">—</div>
+      <div class="bar"><i id="goalBar"></i></div>
+      <div class="hint" id="goalProgress" style="margin-top:6px"></div>
+    </div>
+    <div class="sec" id="selBox">
+      <h2>Looking inside</h2>
+      <div class="hint" id="selHint">Click anyone in the town.</div>
+      <div id="selBody" style="display:none">
+        <div class="npc-name" id="selName"></div>
+        <div class="traits" id="selTraits"></div>
+        <div id="selBeliefs" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="sec" id="whisperBox">
+      <h2>Whisper to <span id="whTarget">someone</span></h2>
+      <div class="field"><label>about</label><select id="wSubject"></select></div>
+      <div class="two">
+        <div class="field"><label>concerning their</label><select id="wTopic"></select></div>
+        <div class="field"><label>you say they are</label><select id="wValence">
+          <option value="0.7">good / warm</option>
+          <option value="-0.7">poor / cold</option>
+        </select></div>
+      </div>
+      <button id="doWhisper" style="width:100%">Whisper it ✧</button>
+      <div class="hint" style="margin-top:8px">Once it leaves your lips, the town carries it — and changes it.</div>
+    </div>
+    <div class="sec" style="flex:0 0 auto"><h2>What the town is saying</h2></div>
+    <div id="feed"></div>
+  </div>
+</div>
+<script>
+"use strict";
+/* ============================================================================
+   WHISPER — an emergent small-town rumor simulation.
+   Beliefs ARE rumors: they propagate one hop per day and mutate as they pass
+   through each person's temperament. You inject beliefs (whispers); the town
+   does the rest. Fully deterministic-per-tick with a seeded PRNG so a run is
+   reproducible and every twist is traceable.
+   ========================================================================== */
+
+/* ---- tiny seeded PRNG (mulberry32) so runs are reproducible & fair ------- */
+function makeRng(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const clamp = (x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+const sign = x => x>0?1:x<0?-1:0;
+
+/* ---- ontology: a rumor is structured, so mutation stays bounded ---------- */
+const TOPICS = ["kindness","honesty","romance","competence"];
+const TOPIC_LABEL = {kindness:"kindness",honesty:"honesty",romance:"the heart",competence:"skill"};
+const ADJ = { // where an embellisher's tongue slips
+  kindness:"honesty", honesty:"kindness", romance:"kindness", competence:"honesty"
+};
+
+/* ---- the townsfolk. traits are pure filters on anything passing through -- */
+const PEOPLE = [
+  {id:"Mara",  traits:["honest","kind"]},
+  {id:"Lena",  traits:["loyalish","skeptic"]},
+  {id:"Ivan",  traits:["honest"]},
+  {id:"Jonah", traits:["gossip"]},
+  {id:"Petra", traits:["embellisher","gossip"]},
+  {id:"Nadia", traits:["gossip"]},
+  {id:"Odette",traits:["gossip","anxious"]},
+  {id:"Sol",   traits:["skeptic"]},
+  {id:"Tomas", traits:["skeptic"]},
+  {id:"Cyrus", traits:["embellisher"]},
+  {id:"Bram",  traits:["anxious"]},
+  {id:"Wren",  traits:["honest","kind"]},
+];
+const NAMES = PEOPLE.map(p=>p.id);
+const TRAIT_DESC = {
+  honest:"passes things faithfully, won't spread thin gossip",
+  kind:"warm-hearted",
+  loyalish:"defends the people they love",
+  skeptic:"needs real evidence; can let a rumor die",
+  gossip:"tells many people, quickly",
+  embellisher:"can't help making a story juicier",
+  anxious:"fears travel further than facts",
+};
+
+/* ---- the social fabric: [a, b, base-trust] ------------------------------- */
+const EDGES = [
+  ["Mara","Lena",.72],["Mara","Ivan",.55],["Mara","Jonah",.32],["Mara","Wren",.5],
+  ["Jonah","Petra",.6],["Petra","Nadia",.7],["Nadia","Odette",.62],["Odette","Sol",.5],
+  ["Sol","Tomas",.6],["Tomas","Cyrus",.42],["Cyrus","Bram",.5],["Bram","Wren",.6],
+  ["Wren","Lena",.5],["Lena","Ivan",.42],["Ivan","Sol",.44],["Jonah","Odette",.4],
+  ["Nadia","Cyrus",.4],["Petra","Sol",.3],["Bram","Nadia",.34],["Tomas","Lena",.3],
+];
+
+/* ---- shared pure helpers (module scope so GOALS can use them) ------------- */
+function seedBelief(st,n,subj,topic,v,s){ st.belief[n+"|"+subj+"|"+topic]={v,s}; }
+function townValence(st,subj,topic){
+  let num=0, den=0;
+  NAMES.forEach(n=>{
+    if(n===subj) return;
+    const b = st.belief[n+"|"+subj+"|"+topic];
+    if(b && b.s>0.05){ num += b.v*b.s; den += b.s; }
+  });
+  return den>0 ? num/den : 0;
+}
+
+/* ---- goals: wholesome, human, one per run -------------------------------- */
+const GOALS = [
+  {
+    id:"clear",
+    subject:"Mara",
+    text:"A cruel rumor says <b>Mara</b> is a liar. It isn't true. Warm the town's heart toward her honesty again — without lying yourself.",
+    metric(s){ return townValence(s,"Mara","honesty"); },
+    target:0.35,
+    seed(s){ seedBelief(s,"Jonah","Mara","honesty",-0.6,0.7); seedBelief(s,"Petra","Mara","honesty",-0.45,0.5); s.aff["Jonah|Mara"]=-0.35; }
+  },
+  {
+    id:"cheer",
+    subject:"Bram",
+    text:"<b>Bram</b> has been low and lonely lately. Let the town come to see his kindness, so friends drift his way.",
+    metric(s){ return townValence(s,"Bram","kindness"); },
+    target:0.4,
+    seed(s){ seedBelief(s,"Bram","Bram","kindness",-0.2,0.3); }
+  },
+  {
+    id:"match",
+    subject:"Odette",
+    text:"<b>Sol</b> and <b>Odette</b> are sweet on each other but too shy to know it. Let a warm word about the heart find its way between them.",
+    metric(s){ return (townValence(s,"Odette","romance")+townValence(s,"Sol","romance"))/2; },
+    target:0.3,
+    seed(s){ }
+  },
+];
+
+/* ========================================================================== */
+const Game = (function(){
+  let S = null;              // state
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let pos = {};              // node id -> {x,y} in unit circle coords
+  let selected = null;
+  let anim = [];             // active pulses
+  let animRAF = null;
+
+  function fresh(seed){
+    const rng = makeRng(seed);
+    const st = {
+      seed, rng, day:1, maxDays:12, whispersLeft:2, whispersPerDay:2,
+      over:false,
+      trust:{},          // "a|b" (sorted) -> 0..1
+      aff:{},            // "x|subject" -> -1..1  (how x feels about subject)
+      belief:{},         // "npc|subject|topic" -> {v,s}
+      goal:null,
+      feed:[],
+    };
+    // trust (symmetric, keyed sorted)
+    EDGES.forEach(([a,b,t])=> st.trust[key(a,b)] = t);
+    // affinity defaults: a mildly warm town
+    NAMES.forEach(x=> NAMES.forEach(y=>{ if(x!==y) st.aff[x+"|"+y] = 0.2; }));
+    st.aff["Lena|Mara"] = 0.6;
+    // choose goal
+    st.goal = GOALS[Math.floor(rng()*GOALS.length)];
+    st.goal.seed(st);
+    return st;
+  }
+  const key=(a,b)=> a<b ? a+"|"+b : b+"|"+a;
+  const neighbors=(id)=>{
+    const out=[];
+    EDGES.forEach(([a,b])=>{ if(a===id) out.push(b); else if(b===id) out.push(a); });
+    return out;
+  };
+  const trust=(a,b)=> S.trust[key(a,b)] ?? 0;
+  const getBelief=(n,subj,topic)=> S.belief[n+"|"+subj+"|"+topic] || {v:0,s:0};
+
+  /* ---- receiving a rumor updates a belief (belief != transmission) ------- */
+  function receive(B, from, r){
+    // from===B means the player planted it directly — it lands as a vivid,
+    // first-hand impression, carrying your credibility rather than a self-edge.
+    const t = (from===B) ? 0.9 : trust(from,B);
+    const isSkeptic = PEOPLE.find(p=>p.id===B).traits.includes("skeptic");
+    let credibility = t * r.e * (isSkeptic?0.55:1);
+    const prior = getBelief(B, r.subject, r.topic);
+    // confirmation bias: agreeing with a held view lands harder
+    const confirm = 1 + 0.5*sign(prior.v)*sign(r.v)*Math.min(1,prior.s);
+    let accept = clamp(credibility*confirm, 0, 1);
+    if(isSkeptic && accept<0.18) return false;     // skeptic lets it die
+    const kStr = B+"|"+r.subject+"|"+r.topic;
+    const addS = accept*r.intensity*0.55;
+    const newS = clamp(prior.s + addS, 0, 1);
+    const newV = (prior.s+accept)>0 ? (prior.v*prior.s + r.v*accept)/(prior.s+accept) : r.v;
+    S.belief[kStr] = {v:clamp(newV,-1,1), s:newS};
+    return true;
+  }
+
+  /* ---- a person reshapes a belief as they pass it on -------------------- */
+  function mutate(A, subj, topic, v, s){
+    const tr = PEOPLE.find(p=>p.id===A).traits;
+    let nv=v, ntopic=topic, e = s*(tr.includes("honest")?0.98:0.85);
+    if(tr.includes("embellisher")){
+      e*=0.72; nv*=1.28;
+      if(S.rng()<0.42){ ntopic = ADJ[topic]; }         // the story "slips" topic
+    }
+    // loyalty / jealousy emerge from how A feels about the subject
+    const a = S.aff[A+"|"+subj] ?? 0.2;
+    nv += (a-0.2)*0.85;                                 // like → soften/​brighten, dislike → darken
+    if(tr.includes("kind") && nv<0) nv*=0.7;            // kind mouths dull the knife
+    if(tr.includes("anxious") && nv<0){ nv*=1.35; e=clamp(e+0.1,0,1); } // fear travels far
+    return {subject:subj, topic:ntopic, v:clamp(nv,-1,1), e:clamp(e,0,1), intensity:s};
+  }
+
+  /* ---- one day: everyone shares once, simultaneously (one hop) ---------- */
+  function advanceDay(){
+    if(S.over) return;
+    const transmissions = [];
+    NAMES.forEach(A=>{
+      const traits = PEOPLE.find(p=>p.id===A).traits;
+      // which of A's beliefs are worth sharing?
+      const cands = [];
+      NAMES.forEach(subj=> TOPICS.forEach(topic=>{
+        const b = S.belief[A+"|"+subj+"|"+topic];
+        if(!b) return;
+        const heat = b.s*Math.abs(b.v);
+        if(b.s>=0.32 && Math.abs(b.v)>=0.2) cands.push({subj,topic,b,heat});
+      }));
+      cands.sort((x,y)=>y.heat-x.heat);
+      const spread = traits.includes("gossip")?3:1;
+      cands.slice(0,spread).forEach(c=>{
+        // honest folk won't carry flimsy gossip
+        if(traits.includes("honest") && c.b.s<0.3) return;
+        neighbors(A).forEach(B=>{
+          const p = trust(A,B) * (traits.includes("gossip")?1.0:0.62) * Math.min(1, c.b.s+0.3);
+          if(S.rng()<p){
+            const r = mutate(A, c.subj, c.topic, c.b.v, c.b.s);
+            if(r.e<0.2) return;                          // too thin to bother repeating
+            transmissions.push({A,B,r, twisted:(r.topic!==c.topic), origTopic:c.topic});
+          }
+        });
+      });
+    });
+    // apply all at once (true one-hop-per-day)
+    const landed = [];
+    transmissions.forEach(tx=>{ if(receive(tx.B, tx.A, tx.r)) landed.push(tx); });
+
+    // world reacts: feelings drift toward what people now believe
+    reactWorld();
+
+    // narrate the juicy bits
+    landed.forEach(tx=> logTransmission(tx));
+
+    S.day++;
+    if(S.whispersLeft<S.whispersPerDay) S.whispersLeft = S.whispersPerDay;
+    animatePulses(landed);
+    checkEnd();
+    render(); syncHUD();
+  }
+
+  /* ---- affinity & trust drift so the graph feels alive ------------------ */
+  function reactWorld(){
+    const daff = {};
+    NAMES.forEach(X=> NAMES.forEach(subj=>{
+      if(X===subj) return;
+      const bk = getBelief(X,subj,"kindness"), bh = getBelief(X,subj,"honesty");
+      const w = bk.s+bh.s;
+      if(w<=0.05) return;
+      const fav = (bk.v*bk.s + bh.v*bh.s)/w;
+      daff[X+"|"+subj] = (fav - (S.aff[X+"|"+subj]??0.2))*0.18;
+    }));
+    for(const k in daff) S.aff[k] = clamp((S.aff[k]??0.2)+daff[k], -1, 1);
+    // trust edges ease toward mutual affinity
+    EDGES.forEach(([a,b])=>{
+      const mutual = ((S.aff[a+"|"+b]??0.2)+(S.aff[b+"|"+a]??0.2))/2;
+      const target = clamp(0.5+mutual*0.5, 0.05, 0.95);
+      const k = key(a,b);
+      S.trust[k] = clamp(S.trust[k] + (target-S.trust[k])*0.06, 0.05, 0.95);
+    });
+  }
+
+  function logTransmission(tx){
+    const {A,B,r} = tx;
+    const goalSubj = S.goal.subject;
+    // keep the feed focused: show twists, and anything about the goal person
+    const interesting = tx.twisted || r.subject===goalSubj || Math.abs(r.v)>0.55;
+    if(!interesting) return;
+    const dir = r.v>=0 ? "up" : "down";
+    const word = r.v>=0 ? "warmly" : "darkly";
+    let txt = `<span class="who">${A}</span> tells <span class="who">${B}</span> that <b>${r.subject}</b> is <span class="${dir}">${word} spoken of</span> — about ${TOPIC_LABEL[r.topic]}`;
+    if(tx.twisted) txt += ` <span class="twist">(it began as ${TOPIC_LABEL[tx.origTopic]})</span>`;
+    S.feed.unshift(txt);
+    if(S.feed.length>40) S.feed.pop();
+  }
+
+  /* ---- player whisper: inject a belief with your own credibility -------- */
+  function whisper(target, subj, topic, v){
+    if(S.over || S.whispersLeft<=0) return;
+    // you speak plainly and believably: high evidence, honest strength
+    receive(target, target, {subject:subj, topic:topic, v, e:0.9, intensity:0.9});
+    // (self-source: you place the thought as if freshly witnessed)
+    S.whispersLeft--;
+    S.feed.unshift(`<span class="who">You</span> whisper to <span class="who">${target}</span> that <b>${subj}</b> is ${v>=0?'<span class="up">good-hearted</span>':'<span class="down">not to be trusted</span>'} — about ${TOPIC_LABEL[topic]}`);
+    if(S.feed.length>40) S.feed.pop();
+    reactWorld();
+    render(); syncHUD();
+  }
+
+  function checkEnd(){
+    const m = S.goal.metric(S);
+    if(m>=S.goal.target){
+      S.over=true; endScreen(true, `The town's heart has turned. Warmth found its way home — carried mouth to mouth, and you never had to raise your voice.`);
+    } else if(S.day>S.maxDays){
+      S.over=true; endScreen(false, `The days ran out. The town settled where it settled. Some whispers take longer than a fortnight to bloom — try a gentler path.`);
+    }
+  }
+
+  /* ============================ RENDERING ================================= */
+  function layout(){
+    const n=NAMES.length;
+    NAMES.forEach((id,i)=>{
+      const ang = (i/n)*Math.PI*2 - Math.PI/2;
+      pos[id] = {x:Math.cos(ang), y:Math.sin(ang)};
+    });
+  }
+  function resize(){
+    const r = cv.getBoundingClientRect();
+    cv.width = r.width*devicePixelRatio; cv.height = r.height*devicePixelRatio;
+    render();
+  }
+  function toPx(p){
+    const w=cv.width, h=cv.height, R=Math.min(w,h)*0.37;
+    return {x:w/2 + p.x*R, y:h/2 + p.y*R};
+  }
+  function moodColor(id){
+    // how the town feels about this person on kindness+honesty
+    const v = (townValence(S,id,"kindness")+townValence(S,id,"honesty"))/2;
+    const t = clamp((v+1)/2,0,1);
+    const cold=[232,138,168], warm=[111,214,160], mid=[167,159,206];
+    const lerp=(a,b,k)=>Math.round(a+(b-a)*k);
+    let c = t<0.5 ? cold.map((x,i)=>lerp(x,mid[i],t*2)) : mid.map((x,i)=>lerp(x,warm[i],(t-0.5)*2));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  function render(){
+    if(!S) return;
+    const w=cv.width,h=cv.height;
+    ctx.clearRect(0,0,w,h);
+    // edges
+    EDGES.forEach(([a,b])=>{
+      const pa=toPx(pos[a]), pb=toPx(pos[b]), tv=trust(a,b);
+      ctx.strokeStyle = `rgba(143,123,255,${0.12+tv*0.5})`;
+      ctx.lineWidth = (0.6+tv*4.2)*devicePixelRatio;
+      ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+    });
+    // live pulses
+    anim.forEach(pl=>{
+      const pa=toPx(pos[pl.A]), pb=toPx(pos[pl.B]);
+      const x=pa.x+(pb.x-pa.x)*pl.t, y=pa.y+(pb.y-pa.y)*pl.t;
+      ctx.beginPath(); ctx.arc(x,y,5*devicePixelRatio,0,7);
+      ctx.fillStyle = pl.v>=0 ? "#6fd6a0" : "#e88aa8"; ctx.fill();
+    });
+    // nodes
+    NAMES.forEach(id=>{
+      const p=toPx(pos[id]), rad=17*devicePixelRatio;
+      if(selected===id){
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad+6*devicePixelRatio,0,7);
+        ctx.strokeStyle="var(--ring)"; ctx.strokeStyle="#8f7bff"; ctx.lineWidth=2*devicePixelRatio; ctx.stroke();
+      }
+      if(id===S.goal.subject){
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad+3*devicePixelRatio,0,7);
+        ctx.strokeStyle="#f2c67a"; ctx.setLineDash([4*devicePixelRatio,4*devicePixelRatio]);
+        ctx.lineWidth=1.5*devicePixelRatio; ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,7);
+      ctx.fillStyle=moodColor(id); ctx.fill();
+      ctx.fillStyle="#141225"; ctx.font=`${11*devicePixelRatio}px 'Segoe UI',sans-serif`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(id[0], p.x, p.y);
+      ctx.fillStyle="#efeaff"; ctx.font=`${11.5*devicePixelRatio}px 'Segoe UI',sans-serif`;
+      ctx.fillText(id, p.x, p.y+rad+11*devicePixelRatio);
+    });
+  }
+  function animatePulses(landed){
+    anim = landed.slice(0,26).map(tx=>({A:tx.A,B:tx.B,v:tx.r.v,t:0,sp:0.02+Math.random()*0.02}));
+    if(animRAF) cancelAnimationFrame(animRAF);
+    const step=()=>{
+      let alive=false;
+      anim.forEach(pl=>{ pl.t+=pl.sp; if(pl.t<1) alive=true; });
+      anim = anim.filter(pl=>pl.t<1);
+      render();
+      if(alive) animRAF=requestAnimationFrame(step);
+    };
+    step();
+  }
+
+  /* ============================ UI GLUE ================================== */
+  function syncHUD(){
+    document.getElementById("dayNum").textContent=S.day;
+    document.getElementById("dayMax").textContent=S.maxDays;
+    document.getElementById("whLeft").textContent=S.whispersLeft;
+    document.getElementById("goalText").innerHTML=S.goal.text;
+    const m=S.goal.metric(S), prog=clamp(m/S.goal.target,0,1);
+    document.getElementById("goalBar").style.width=(prog*100)+"%";
+    document.getElementById("goalProgress").textContent =
+      `warmth ${(m>=0?"+":"")}${m.toFixed(2)}  ·  need +${S.goal.target.toFixed(2)}`;
+    // feed
+    const f=document.getElementById("feed");
+    f.innerHTML = S.feed.map(t=>`<div class="row">${t}</div>`).join("") ||
+      `<div class="hint" style="padding:8px 0">Quiet so far. Plant a whisper, then let a day unfold.</div>`;
+    document.getElementById("advBtn").disabled=S.over;
+    // populate whisper subject/topic selects (once)
+    const subSel=document.getElementById("wSubject");
+    if(subSel.children.length===0){
+      NAMES.forEach(n=> subSel.add(new Option(n,n)));
+      const tSel=document.getElementById("wTopic");
+      TOPICS.forEach(t=> tSel.add(new Option(TOPIC_LABEL[t],t)));
+      subSel.value=S.goal.subject;
+    }
+  }
+  function showNPC(id){
+    selected=id;
+    document.getElementById("selHint").style.display="none";
+    document.getElementById("selBody").style.display="block";
+    document.getElementById("selName").textContent=id;
+    const p=PEOPLE.find(x=>x.id===id);
+    document.getElementById("selTraits").innerHTML =
+      p.traits.map(t=>`<span class="tag" title="${TRAIT_DESC[t]||''}">${t}</span>`).join("");
+    // what THIS person believes
+    const rows=[];
+    NAMES.forEach(subj=> TOPICS.forEach(topic=>{
+      const b=S.belief[id+"|"+subj+"|"+topic];
+      if(b && b.s>0.12){
+        const cls=b.v>=0?"v-pos":"v-neg";
+        rows.push(`<div class="belief-line"><span>${subj} · ${TOPIC_LABEL[topic]}</span><b class="${cls}">${b.v>=0?"+":""}${b.v.toFixed(2)} <span style="color:var(--muted)">(${(b.s*100)|0}%)</span></b></div>`);
+      }
+    }));
+    document.getElementById("selBeliefs").innerHTML =
+      rows.length? `<div class="hint" style="margin-bottom:4px">holds in their heart:</div>`+rows.join("")
+                 : `<div class="hint">carries no strong opinions yet.</div>`;
+    // arm whisper box
+    document.getElementById("whisperBox").classList.add("on");
+    document.getElementById("whTarget").textContent=id;
+    render();
+  }
+  function endScreen(win,msg){
+    const ov=document.getElementById("overlay");
+    ov.style.display="flex";
+    document.getElementById("ovTitle").textContent = win?"A kinder town ✿":"The town settles";
+    document.getElementById("ovBody").textContent = msg;
+  }
+
+  /* ============================ WIRING =================================== */
+  function hit(mx,my){
+    let best=null,bd=1e9;
+    NAMES.forEach(id=>{ const p=toPx(pos[id]); const d=Math.hypot(mx-p.x,my-p.y);
+      if(d<bd){bd=d;best=id;} });
+    return bd < 26*devicePixelRatio ? best : null;
+  }
+  function init(){
+    layout();
+    cv.addEventListener("click",e=>{
+      const r=cv.getBoundingClientRect();
+      const id=hit((e.clientX-r.left)*devicePixelRatio,(e.clientY-r.top)*devicePixelRatio);
+      if(id) showNPC(id);
+    });
+    document.getElementById("advBtn").onclick=advanceDay;
+    document.getElementById("restartBtn").onclick=reset;
+    document.getElementById("doWhisper").onclick=()=>{
+      if(!selected) return;
+      whisper(selected, document.getElementById("wSubject").value,
+        document.getElementById("wTopic").value, parseFloat(document.getElementById("wValence").value));
+    };
+    window.addEventListener("resize",resize);
+    reset();
+  }
+  function reset(){
+    document.getElementById("overlay").style.display="none";
+    S = fresh((Math.random()*1e9)|0);
+    selected=null; anim=[];
+    document.getElementById("selHint").style.display="block";
+    document.getElementById("selBody").style.display="none";
+    document.getElementById("whisperBox").classList.remove("on");
+    document.getElementById("wSubject").innerHTML="";
+    resize(); syncHUD();
+  }
+
+  return { init, reset,
+    // exposed for headless self-test
+    _debug:()=>({S, townValence, advanceDay, whisper, fresh:(s)=>{S=fresh(s);}, getS:()=>S}) };
+})();
+window.Game = Game;
+window.addEventListener("DOMContentLoaded", Game.init);
+</script>
+</body>
+</html>
