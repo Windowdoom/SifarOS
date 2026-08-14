@@ -76,6 +76,32 @@
   .legend{position:absolute; left:14px; bottom:12px; font-size:11px; color:var(--muted); background:#0006; padding:8px 10px; border-radius:8px; border:1px solid var(--line); line-height:1.6}
   .swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
 
+  /* ---------------- crossroads modal ---------------- */
+  #xmodal{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:#0b0a17d8; backdrop-filter:blur(4px); z-index:6; padding:24px;
+  }
+  .xcard{
+    width:min(460px,92%); background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:22px 24px; box-shadow:0 8px 48px #000a; animation:riseIn .45s ease both;
+  }
+  .xkind{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--warm); margin-bottom:4px}
+  .xcard h3{margin:0 0 14px; font-size:22px}
+  .weigh{margin-bottom:14px}
+  .wrow{display:flex; align-items:center; gap:10px; margin:7px 0; font-size:12px}
+  .wlab{width:78px; text-align:right; color:var(--muted)}
+  .wlab-t{color:var(--bad)} .wlab-c{color:var(--good)}
+  .wbar{flex:1; height:10px; border-radius:6px; background:#0003; border:1px solid var(--line); overflow:hidden}
+  .wbar i{display:block; height:100%; width:0; transition:width .9s cubic-bezier(.2,.8,.2,1)}
+  .wt{background:linear-gradient(90deg,#a2536e,var(--bad))}
+  .wc{background:linear-gradient(90deg,#3f8f6a,var(--good))}
+  .wrow b{width:36px; font-size:11.5px; color:var(--muted)}
+  .xcols{display:flex; gap:16px; margin-bottom:10px}
+  .xcols > div{flex:1}
+  .xcols h4{margin:0 0 5px; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted)}
+  .xcols ul{margin:0; padding-left:16px; font-size:12px; color:#cfc8ea; line-height:1.55}
+  .xline{font-size:13.5px; line-height:1.55; border-left:3px solid var(--warm); padding-left:12px; margin:14px 0}
+
   /* ---------------- intro ---------------- */
   #intro{
     position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
@@ -127,7 +153,7 @@
     <div class="steps">
       <div class="step"><b>1 · Look</b><p><span class="k">Click</span> any townsfolk to see their heart — their temperament, and what they believe about their neighbours.</p></div>
       <div class="step"><b>2 · Whisper</b><p>Plant one kind thought in one ear. You get <span class="k">2 whispers a day</span> — choose your mouths wisely. Gossips carry far; skeptics let things die.</p></div>
-      <div class="step"><b>3 · Let go</b><p>Press <span class="k">Let the day unfold</span>. The town talks — and twists what it heard. Warm the town's heart before <span class="k">12 days</span> pass.</p></div>
+      <div class="step"><b>3 · Let go</b><p>Press <span class="k">Let the day unfold</span>. The town talks — and twists what it heard. When pressure grows too heavy, a soul reaches a <span class="k">crossroads</span> and chooses good or evil — <i>alone</i>. You only witness. See every heart through <span class="k">14 days</span> of winter.</p></div>
     </div>
     <button id="beginBtn">Enter the town ✧</button>
     <div class="intro-foot">Once it leaves your lips, it is no longer yours.</div>
@@ -141,6 +167,21 @@
       <div>edge thickness = how much they trust each other</div>
       <div>click a townsfolk to look inside their heart</div>
     </div>
+    <div id="xmodal"><div class="xcard">
+      <div class="xkind" id="xKind"></div>
+      <h3 id="xName"></h3>
+      <div class="weigh">
+        <div class="wrow"><span class="wlab wlab-t">temptation</span><div class="wbar"><i id="xTbar" class="wt"></i></div><b id="xTval"></b></div>
+        <div class="wrow"><span class="wlab wlab-c">conscience</span><div class="wbar"><i id="xCbar" class="wc"></i></div><b id="xCval"></b></div>
+      </div>
+      <div class="xcols">
+        <div><h4>what pulls at them</h4><ul id="xPull"></ul></div>
+        <div><h4>what holds them</h4><ul id="xHold"></ul></div>
+      </div>
+      <p class="xline" id="xLine"></p>
+      <button id="xNext" style="width:100%">Witness ▸</button>
+      <div class="hint" style="margin-top:8px; text-align:center">The choice was theirs. It always is.</div>
+    </div></div>
     <div id="overlay"><div class="card">
       <h2 id="ovTitle"></h2><p id="ovBody"></p>
       <div style="margin-top:16px"><button onclick="Game.reset()">Play again</button></div>
@@ -209,20 +250,23 @@ const ADJ = { // where an embellisher's tongue slips
   kindness:"honesty", honesty:"kindness", romance:"kindness", competence:"honesty"
 };
 
-/* ---- the townsfolk. traits are pure filters on anything passing through -- */
+/* ---- the townsfolk. traits are pure filters on anything passing through.
+   soul = {loyal, honest, mercy, resolve} — who they ARE. Authored, never
+   writable by the player. The player shapes the weather; the soul does the
+   choosing. ------------------------------------------------------------- */
 const PEOPLE = [
-  {id:"Mara",  traits:["honest","kind"]},
-  {id:"Lena",  traits:["loyalish","skeptic"]},
-  {id:"Ivan",  traits:["honest"]},
-  {id:"Jonah", traits:["gossip"]},
-  {id:"Petra", traits:["embellisher","gossip"]},
-  {id:"Nadia", traits:["gossip"]},
-  {id:"Odette",traits:["gossip","anxious"]},
-  {id:"Sol",   traits:["skeptic"]},
-  {id:"Tomas", traits:["skeptic"]},
-  {id:"Cyrus", traits:["embellisher"]},
-  {id:"Bram",  traits:["anxious"]},
-  {id:"Wren",  traits:["honest","kind"]},
+  {id:"Mara",  traits:["honest","kind"],        soul:{loyal:.9, honest:.9, mercy:.8, resolve:.7}},
+  {id:"Lena",  traits:["loyalish","skeptic"],   soul:{loyal:.8, honest:.7, mercy:.6, resolve:.8}},
+  {id:"Ivan",  traits:["honest"],               soul:{loyal:.7, honest:.9, mercy:.6, resolve:.7}},
+  {id:"Jonah", traits:["gossip"],               soul:{loyal:.5, honest:.5, mercy:.4, resolve:.4}},
+  {id:"Petra", traits:["embellisher","gossip"], soul:{loyal:.5, honest:.4, mercy:.7, resolve:.5}},
+  {id:"Nadia", traits:["gossip"],               soul:{loyal:.6, honest:.5, mercy:.6, resolve:.5}},
+  {id:"Odette",traits:["gossip","anxious"],     soul:{loyal:.7, honest:.6, mercy:.7, resolve:.35}},
+  {id:"Sol",   traits:["skeptic"],              soul:{loyal:.7, honest:.8, mercy:.5, resolve:.8}},
+  {id:"Tomas", traits:["skeptic"],              soul:{loyal:.6, honest:.7, mercy:.4, resolve:.6}},
+  {id:"Cyrus", traits:["embellisher"],          soul:{loyal:.45,honest:.4, mercy:.5, resolve:.4}},
+  {id:"Bram",  traits:["anxious"],              soul:{loyal:.7, honest:.6, mercy:.8, resolve:.4}},
+  {id:"Wren",  traits:["honest","kind"],        soul:{loyal:.85,honest:.8, mercy:.9, resolve:.7}},
 ];
 const NAMES = PEOPLE.map(p=>p.id);
 const TRAIT_DESC = {
@@ -256,33 +300,26 @@ function townValence(st,subj,topic){
   return den>0 ? num/den : 0;
 }
 
-/* ---- goals: wholesome, human, one per run -------------------------------- */
-const GOALS = [
-  {
-    id:"clear",
-    subject:"Mara",
-    text:"A cruel rumor says <b>Mara</b> is a liar. It isn't true. Warm the town's heart toward her honesty again — without lying yourself.",
-    metric(s){ return townValence(s,"Mara","honesty"); },
-    target:0.35,
-    seed(s){ seedBelief(s,"Jonah","Mara","honesty",-0.6,0.7); seedBelief(s,"Petra","Mara","honesty",-0.45,0.5); s.aff["Jonah|Mara"]=-0.35; }
-  },
-  {
-    id:"cheer",
-    subject:"Bram",
-    text:"<b>Bram</b> has been low and lonely lately. Let the town come to see his kindness, so friends drift his way.",
-    metric(s){ return townValence(s,"Bram","kindness"); },
-    target:0.4,
-    seed(s){ seedBelief(s,"Bram","Bram","kindness",-0.2,0.3); }
-  },
-  {
-    id:"match",
-    subject:"Odette",
-    text:"<b>Sol</b> and <b>Odette</b> are sweet on each other but too shy to know it. Let a warm word about the heart find its way between them.",
-    metric(s){ return (townValence(s,"Odette","romance")+townValence(s,"Sol","romance"))/2; },
-    target:0.3,
-    seed(s){ }
-  },
-];
+/* ---- the vigil: one goal, the whole town's souls -------------------------
+   Winter seeds old grudges and cold shoulders. Pressure builds; souls reach
+   crossroads; each chooses alone. You win by seeing everyone through. ------ */
+const VIGIL = {
+  id:"vigil",
+  subject:"Jonah",     // updated daily to the soul nearest the shadow
+  text:"Winter has come, and old grudges gnaw at this little town. You are its unseen keeper. Warm the cold, soften the resentful — and when a soul stands at a crossroads, all you may do is watch them choose. <b>Let no heart fall before spring.</b>",
+  metric(s){ let f=0; NAMES.forEach(n=>{ if(s.moral[n].standing==="fallen") f++; }); return (NAMES.length-f)/NAMES.length; },
+  target:1,
+  seed(s){
+    // old wounds, so the winter has teeth from day one
+    seedBelief(s,"Jonah","Mara","honesty",-0.55,0.65);  s.aff["Jonah|Mara"]=-0.4;   // Jonah nurses a grudge
+    seedBelief(s,"Cyrus","Tomas","kindness",-0.5,0.6);  s.aff["Cyrus|Tomas"]=-0.35; // Cyrus feels wronged
+    seedBelief(s,"Petra","Lena","honesty",-0.4,0.5);    s.aff["Petra|Lena"]=-0.25;
+    // Odette and Bram feel unseen — the town is cool toward them
+    NAMES.forEach(x=>{ if(x!=="Odette") s.aff[x+"|Odette"]=-0.05; });
+    NAMES.forEach(x=>{ if(x!=="Bram")   s.aff[x+"|Bram"]=0.0; });
+  }
+};
+const GOALS = [VIGIL];
 
 /* ========================================================================== */
 const Game = (function(){
@@ -298,14 +335,21 @@ const Game = (function(){
   function fresh(seed){
     const rng = makeRng(seed);
     const st = {
-      seed, rng, day:1, maxDays:12, whispersLeft:2, whispersPerDay:2,
+      seed, rng, day:1, maxDays:14, whispersLeft:2, whispersPerDay:2,
       over:false,
       trust:{},          // "a|b" (sorted) -> 0..1
       aff:{},            // "x|subject" -> -1..1  (how x feels about subject)
       belief:{},         // "npc|subject|topic" -> {v,s}
       goal:null,
       feed:[],
+      moral:{},          // npc -> {standing, guilt, fatigue, T, C}
+      voice:{},          // npc -> a private seeded rng: the inner voice. THEIRS.
+      xroads:[],         // deliberation records queued for the player to witness
     };
+    PEOPLE.forEach((p,i)=>{
+      st.moral[p.id]={standing:"upright", guilt:0, fatigue:0, T:0, C:0.7};
+      st.voice[p.id]=makeRng((seed*2654435761 ^ (i+1)*40503)>>>0);
+    });
     // trust (symmetric, keyed sorted)
     EDGES.forEach(([a,b,t])=> st.trust[key(a,b)] = t);
     // affinity defaults: a mildly warm town
@@ -397,12 +441,19 @@ const Game = (function(){
     // world reacts: feelings drift toward what people now believe
     reactWorld();
 
+    // souls under pressure reach their crossroads — and choose, alone
+    S.xroads=[];
+    moralDay();
+
     // narrate the juicy bits
     landed.forEach(tx=> logTransmission(tx));
+    S.xroads.forEach(x=> { S.feed.unshift(`<span class="twist">✧</span> ${x.line}`); });
+    if(S.feed.length>40) S.feed.length=40;
 
     S.day++;
     if(S.whispersLeft<S.whispersPerDay) S.whispersLeft = S.whispersPerDay;
     animatePulses(landed);
+    if(S.xroads.length) showCrossroads(S.xroads.slice());
     checkEnd();
     render(); syncHUD();
   }
@@ -426,6 +477,139 @@ const Game = (function(){
       const k = key(a,b);
       S.trust[k] = clamp(S.trust[k] + (target-S.trust[k])*0.06, 0.05, 0.95);
     });
+  }
+
+  /* ===================== THE CROSSROADS ENGINE ===========================
+     Pressure (shapeable by whispers) vs conscience (theirs alone).
+     The player has no button here. They only get to watch.               */
+  function feltWarm(npc){
+    let s=0,n=0;
+    NAMES.forEach(o=>{ if(o!==npc){ s+=S.aff[o+"|"+npc]??0.2; n++; } });
+    return n? s/n : 0;
+  }
+  function worstResent(npc){
+    let best=null;
+    NAMES.forEach(subj=>{
+      if(subj===npc) return;
+      let m=0;
+      ["kindness","honesty"].forEach(t=>{
+        const b=getBelief(npc,subj,t);
+        if(b.v<0) m+=(-b.v)*b.s;
+      });
+      const a=S.aff[npc+"|"+subj]??0.2;
+      if(a<0) m += -a*0.6;
+      if(m>0.12 && (!best || m>best.m)) best={subj,m:Math.min(1,m)};
+    });
+    return best; // {subj, m} or null
+  }
+  function computePressure(npc){
+    const M=S.moral[npc], P=PEOPLE.find(p=>p.id===npc);
+    const warm=feltWarm(npc);
+    const cold=clamp((0.18-warm)*1.7,0,1);
+    const res=worstResent(npc);
+    M.T=clamp(0.62*(res?res.m:0) + 0.55*cold + (P.traits.includes("anxious")?0.08:0) + M.fatigue*0.25, 0, 1);
+    M.C=clamp(0.62*((P.soul.loyal+P.soul.honest+P.soul.mercy)/3+P.soul.resolve*0.3)
+              + 0.4*Math.max(0,warm) + (P.traits.includes("kind")?0.08:0), 0, 1.2);
+    return {warm, cold, res};
+  }
+  function witness(npc, topic, v, s){
+    // neighbors see what npc did; the rumor engine carries it from there
+    neighbors(npc).forEach(B=> receive(B, B, {subject:npc, topic, v, e:0.85, intensity:s}));
+  }
+  function moralDay(){
+    NAMES.forEach(npc=>{
+      const M=S.moral[npc], P=PEOPLE.find(p=>p.id===npc);
+      if(M.standing==="fallen"){ tryRedemption(npc, M, P); return; }
+      // a warmed heart loosens its grip on old grudges — this is the
+      // player's real lever: you cannot erase a grudge, but warmth lets
+      // the grudge-holder do it themselves, a little each day
+      {
+        const w=feltWarm(npc);
+        if(w>0.2){
+          NAMES.forEach(subj=>{
+            if(subj===npc) return;
+            ["kindness","honesty"].forEach(t=>{
+              const k=npc+"|"+subj+"|"+t, b=S.belief[k];
+              if(b&&b.v<0) S.belief[k]={v:b.v*0.93, s:b.s*0.93};
+            });
+          });
+        }
+      }
+      const {warm,cold,res}=computePressure(npc);
+      // warmth heals worn-down resolve
+      if(warm>0.28) M.fatigue=Math.max(0, M.fatigue-0.12);
+      if(M.T<=0.45) return;                       // no crossroads today
+      // ---- a crossroads. their inner voice speaks — seeded to them alone.
+      const voice=S.voice[npc]();
+      const temptScore=M.T*(0.72+0.5*voice);
+      const factors=[];
+      if(res) factors.push(`a grudge against ${res.subj} (${(res.m*100)|0}%)`);
+      if(cold>0.15) factors.push(`the town's cold shoulder (${(cold*100)|0}%)`);
+      if(M.fatigue>0.2) factors.push(`worn-down resolve (${(M.fatigue*100)|0}%)`);
+      const held=[];
+      held.push(`who they are (soul ${((P.soul.loyal+P.soul.honest+P.soul.mercy)/3*100|0)}%)`);
+      if(warm>0.05) held.push(`warmth felt from the town (${(warm*100)|0}%)`);
+      const target=res?res.subj:null;
+      if(temptScore>M.C){
+        // ---- they fall. the deed runs through the rumor engine itself.
+        M.standing="fallen"; M.guilt=clamp(M.guilt+0.55,0,1); M.fatigue=0;
+        let deedTxt;
+        if(target){
+          deedTxt=`spread a cruel lie about <b>${target}</b>`;
+          neighbors(npc).forEach(B=> receive(B, npc, {subject:target, topic:"kindness", v:-0.8, e:0.75, intensity:0.9}));
+          S.aff[npc+"|"+target]=clamp((S.aff[npc+"|"+target]??0)-0.2,-1,1);
+          witness(npc,"kindness",-0.55,0.5);      // cruelty is seen
+        }else{
+          deedTxt=`turned bitter, and slammed the door on everyone`;
+          NAMES.forEach(o=>{ if(o!==npc) S.aff[npc+"|"+o]=clamp((S.aff[npc+"|"+o]??0.2)-0.25,-1,1); });
+          witness(npc,"kindness",-0.4,0.45);
+        }
+        S.xroads.push({npc, kind:"dark", T:temptScore, C:M.C, factors, held,
+          line:`<b>${npc}</b> stood at the crossroads a long while… and ${deedTxt}.`, chose:"fell"});
+      }else{
+        // ---- they resist. it costs them.
+        M.fatigue=clamp(M.fatigue+0.10,0,1);
+        S.xroads.push({npc, kind:"grace", T:temptScore, C:M.C, factors, held,
+          line:`<b>${npc}</b> stood at the crossroads a long while… and turned away from it. But the standing costs them.`, chose:"resisted"});
+        // mercy may go further: forgiveness dissolves the grudge itself
+        if(target && P.soul.mercy>0.6 && warm>0.2 && S.voice[npc]()<P.soul.mercy*0.5){
+          ["kindness","honesty"].forEach(t=>{
+            const k=npc+"|"+target+"|"+t, b=S.belief[k];
+            if(b&&b.v<0) S.belief[k]={v:b.v*0.3, s:b.s*0.5};
+          });
+          S.aff[npc+"|"+target]=clamp((S.aff[npc+"|"+target]??0)+0.4,-1,1);
+          S.xroads[S.xroads.length-1].line=`<b>${npc}</b> stood at the crossroads a long while… then went to <b>${target}</b> and forgave them.`;
+          S.xroads[S.xroads.length-1].chose="forgave";
+          M.fatigue=Math.max(0,M.fatigue-0.2);
+        }
+      }
+    });
+    // the gold ring follows whoever now stands nearest the shadow
+    let worst=null,wt=-1;
+    NAMES.forEach(n=>{ const M=S.moral[n];
+      const risk=M.standing==="fallen"?0.99:M.T;
+      if(M.standing!=="fallen" && risk>wt){ wt=risk; worst=n; } });
+    if(worst) S.goal.subject=worst;
+  }
+  function tryRedemption(npc, M, P){
+    // a fallen soul carries guilt; enough felt warmth, and their own honesty,
+    // can bring them back — confession is a choice too, and it is theirs.
+    const warm=feltWarm(npc);
+    computePressure(npc);
+    if(M.guilt<0.25) return;
+    const voice=S.voice[npc]();
+    // guilt itself pushes toward the light: an ember that won't go out
+    const pull=clamp(0.18 + 0.5*P.soul.honest + 0.5*Math.max(0,warm) + 0.25*voice + 0.25*M.guilt, 0, 1.5);
+    const shame=clamp(0.45+M.T*0.3,0,1);
+    if(pull>shame){
+      M.standing="redeemed"; M.guilt=0; M.fatigue=0;
+      witness(npc,"honesty",0.7,0.7);            // the town sees the confession
+      NAMES.forEach(o=>{ if(o!==npc) S.aff[npc+"|"+o]=clamp((S.aff[npc+"|"+o]??0)+0.15,-1,1); });
+      S.xroads.push({npc, kind:"grace", T:shame, C:pull,
+        factors:[`the shame of being seen (${(shame*100)|0}%)`],
+        held:[`their own honesty (${(P.soul.honest*100)|0}%)`, warm>0? `warmth still offered (${(warm*100)|0}%)`:`a stubborn ember`],
+        line:`<b>${npc}</b> could not carry it any longer — they confessed everything, and asked the town's forgiveness.`, chose:"confessed"});
+    }
   }
 
   function logTransmission(tx){
@@ -456,11 +640,21 @@ const Game = (function(){
   }
 
   function checkEnd(){
-    const m = S.goal.metric(S);
-    if(m>=S.goal.target){
-      S.over=true; endScreen(true, `The town's heart has turned. Warmth found its way home — carried mouth to mouth, and you never had to raise your voice.`);
-    } else if(S.day>S.maxDays){
-      S.over=true; endScreen(false, `The days ran out. The town settled where it settled. Some whispers take longer than a fortnight to bloom — try a gentler path.`);
+    const fallen=NAMES.filter(n=>S.moral[n].standing==="fallen");
+    const redeemed=NAMES.filter(n=>S.moral[n].standing==="redeemed");
+    if(fallen.length>=5){
+      S.over=true;
+      endScreen(false, `The dark spread faster than your whispers could mend. ${fallen.join(", ")} fell before winter's end. Every one of them chose it — and every one of them was pushed. Try warming the coldest hearts sooner.`);
+      return;
+    }
+    if(S.day>S.maxDays){
+      S.over=true;
+      if(fallen.length===0){
+        const red = redeemed.length? ` ${redeemed.join(" and ")} stumbled — and found the way back. That counts double.`:"";
+        endScreen(true, `Spring came, and every heart in town is unbroken.${red} They made every choice themselves; you only kept the light on.`);
+      }else{
+        endScreen(false, `Spring came, but winter kept ${fallen.join(" and ")}. Their choices were their own — yet a warmer town might have chosen with them.`);
+      }
     }
   }
 
@@ -519,7 +713,14 @@ const Game = (function(){
         ctx.beginPath(); ctx.arc(p.x,p.y,rad+6*devicePixelRatio,0,7);
         ctx.strokeStyle="var(--ring)"; ctx.strokeStyle="#8f7bff"; ctx.lineWidth=2*devicePixelRatio; ctx.stroke();
       }
-      if(id===S.goal.subject){
+      const st=S.moral[id].standing;
+      if(st==="fallen"){
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad+3*devicePixelRatio,0,7);
+        ctx.strokeStyle="#e88aa8"; ctx.lineWidth=2.5*devicePixelRatio; ctx.stroke();
+      }else if(st==="redeemed"){
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad+3*devicePixelRatio,0,7);
+        ctx.strokeStyle="#6fd6a0"; ctx.lineWidth=2.5*devicePixelRatio; ctx.stroke();
+      }else if(id===S.goal.subject){
         ctx.beginPath(); ctx.arc(p.x,p.y,rad+3*devicePixelRatio,0,7);
         ctx.strokeStyle="#f2c67a"; ctx.setLineDash([4*devicePixelRatio,4*devicePixelRatio]);
         ctx.lineWidth=1.5*devicePixelRatio; ctx.stroke(); ctx.setLineDash([]);
@@ -561,8 +762,12 @@ const Game = (function(){
     document.getElementById("goalText").innerHTML=S.goal.text;
     const m=S.goal.metric(S), prog=clamp(m/S.goal.target,0,1);
     document.getElementById("goalBar").style.width=(prog*100)+"%";
-    document.getElementById("goalProgress").textContent =
-      `warmth ${(m>=0?"+":"")}${m.toFixed(2)}  ·  need +${S.goal.target.toFixed(2)}`;
+    const fallen=NAMES.filter(n=>S.moral[n].standing==="fallen");
+    const red=NAMES.filter(n=>S.moral[n].standing==="redeemed");
+    document.getElementById("goalProgress").innerHTML =
+      `souls unbroken <b>${NAMES.length-fallen.length}/${NAMES.length}</b>`
+      + (red.length?` · <span style="color:var(--good)">${red.length} found the way back</span>`:"")
+      + ` · nearest the shadow: <b style="color:var(--warm)">${S.goal.subject}</b>`;
     // feed
     const f=document.getElementById("feed");
     f.innerHTML = S.feed.map(t=>`<div class="row">${t}</div>`).join("") ||
@@ -583,8 +788,19 @@ const Game = (function(){
     document.getElementById("selBody").style.display="block";
     document.getElementById("selName").textContent=id;
     const p=PEOPLE.find(x=>x.id===id);
+    const M=S.moral[id];
+    computePressure(id);
+    const stLabel={upright:"steady",redeemed:"✿ found the way back",fallen:"✕ in the shadow"}[M.standing];
+    const stColor={upright:"var(--muted)",redeemed:"var(--good)",fallen:"var(--bad)"}[M.standing];
     document.getElementById("selTraits").innerHTML =
-      p.traits.map(t=>`<span class="tag" title="${TRAIT_DESC[t]||''}">${t}</span>`).join("");
+      p.traits.map(t=>`<span class="tag" title="${TRAIT_DESC[t]||''}">${t}</span>`).join("")
+      + `<span class="tag" style="color:${stColor};border-color:${stColor}">${stLabel}</span>`
+      + `<div style="width:100%;margin-top:8px;font-size:11.5px;color:var(--muted)">
+           <span style="color:var(--bad)">temptation ${(M.T*100)|0}%</span> ·
+           <span style="color:var(--good)">conscience ${(M.C/1.2*100)|0}%</span>
+           ${M.fatigue>0.2?` · <span style="color:var(--warm)">resolve wearing thin</span>`:""}
+           ${M.guilt>0.25?` · carries guilt`:""}
+         </div>`;
     // what THIS person believes
     const rows=[];
     NAMES.forEach(subj=> TOPICS.forEach(topic=>{
@@ -602,6 +818,35 @@ const Game = (function(){
     document.getElementById("whTarget").textContent=id;
     render();
   }
+  function showCrossroads(queue){
+    const modal=document.getElementById("xmodal");
+    let i=0;
+    function show(){
+      const x=queue[i];
+      document.getElementById("xKind").textContent = x.kind==="dark" ? "a soul at a crossroads" : "a moment of grace";
+      document.getElementById("xKind").style.color = x.kind==="dark" ? "var(--bad)" : "var(--good)";
+      document.getElementById("xName").textContent=x.npc;
+      document.getElementById("xPull").innerHTML = x.factors.map(f=>`<li>${f}</li>`).join("")||"<li>a nameless heaviness</li>";
+      document.getElementById("xHold").innerHTML = x.held.map(f=>`<li>${f}</li>`).join("");
+      document.getElementById("xLine").innerHTML=x.line;
+      document.getElementById("xTval").textContent=x.T.toFixed(2);
+      document.getElementById("xCval").textContent=x.C.toFixed(2);
+      const tb=document.getElementById("xTbar"), cb=document.getElementById("xCbar");
+      tb.style.width="0"; cb.style.width="0";
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        tb.style.width=clamp(x.T/1.2,0,1)*100+"%";
+        cb.style.width=clamp(x.C/1.2,0,1)*100+"%";
+      }));
+      document.getElementById("xNext").textContent = i<queue.length-1 ? "Witness the next ▸" : "Return to the town ▸";
+      modal.style.display="flex";
+    }
+    document.getElementById("xNext").onclick=()=>{
+      i++;
+      if(i<queue.length) show(); else { modal.style.display="none"; render(); syncHUD(); }
+    };
+    show();
+  }
+
   function endScreen(win,msg){
     const ov=document.getElementById("overlay");
     ov.style.display="flex";
@@ -701,7 +946,12 @@ const Game = (function(){
   }
   function reset(){
     document.getElementById("overlay").style.display="none";
+    document.getElementById("xmodal").style.display="none";
     S = fresh((Math.random()*1e9)|0);
+    NAMES.forEach(n=>computePressure(n));
+    let worst=null,wt=-1;
+    NAMES.forEach(n=>{ if(S.moral[n].T>wt){wt=S.moral[n].T; worst=n;} });
+    if(worst) S.goal.subject=worst;
     selected=null; hovered=null; anim=[];
     document.getElementById("selHint").style.display="block";
     document.getElementById("selBody").style.display="none";
@@ -712,7 +962,8 @@ const Game = (function(){
 
   return { init, reset,
     // exposed for headless self-test
-    _debug:()=>({S, townValence, advanceDay, whisper, fresh:(s)=>{S=fresh(s);}, getS:()=>S}) };
+    _debug:()=>({S, townValence, advanceDay, whisper, neighbors, computePressure,
+      fresh:(s)=>{S=fresh(s); NAMES.forEach(n=>computePressure(n));}, getS:()=>S}) };
 })();
 window.Game = Game;
 window.addEventListener("DOMContentLoaded", Game.init);

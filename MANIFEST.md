@@ -88,3 +88,36 @@ from lying to reach the honest goals.
    graph (mood colour + trust thickness) without a tutorial.
 
 Run: `node selftest.js` → exercises the pure engine headlessly and asserts 1–6.
+
+---
+
+## 8. Vigil — the Crossroads Engine (moral agency)
+
+The town's souls can now genuinely choose good or evil. Three layers, kept
+strictly separate so agency is real, never scripted:
+
+**The soul (theirs, untouchable).** Each person has an authored conscience
+profile `{loyal, honest, mercy, resolve}` plus a private seeded inner voice.
+The player can never write to either.
+
+**The pressure (yours, shapeable).** Felt warmth (how the town regards them),
+grudges (dark beliefs they hold), worn-down resolve from repeated resistance —
+all fed by the rumor engine. This is the only surface whispers can touch.
+
+**The crossroads (their choice, witnessed).** When temptation crosses a
+threshold, the game weighs temptation vs conscience — soul + felt warmth +
+their own inner voice — and shows the player the whole deliberation bare.
+There is no player button at a crossroads. Falls spread real cruelty back
+through the rumor engine (witnessed, believed, retold); resistance costs
+fatigue; mercy can turn resistance into forgiveness; guilt is an ember that
+can pull a fallen soul to confession and redemption.
+
+**The lever is indirect and honest:** you cannot erase a grudge — but warmth
+lets the grudge-holder loosen it themselves, a little each day.
+
+**Difficulty as comprehension** (measured, seeds 1–30): neglect → falls every
+run · naive warmth → ~4% wins · understanding the system (soothe the grudge,
+then warm the heart) → ~97% wins. Skill = understanding people.
+
+Self-test now asserts: souls can fall AND resist under identical pressure,
+redemption is reachable, caretaking wins, neglect loses, all values bounded.

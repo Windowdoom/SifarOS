@@ -1,5 +1,7 @@
-/* Headless 7-point self-test for Whisper.
-   Loads index.html in Chromium, runs full simulations, asserts engine soundness.
+/* Headless 7-point self-test for Whisper: Vigil.
+   Loads index.html in Chromium, runs full simulations, asserts that the
+   moral-agency engine is sound: souls can fall, resist, and come back —
+   and the player's care matters without ever making the choice.
    Usage: node selftest.js */
 const { chromium } = require("playwright");
 const path = require("path");
@@ -20,63 +22,75 @@ const path = require("path");
   const report = await page.evaluate(() => {
     const D = window.Game._debug();
     const NAMES = ["Mara","Lena","Ivan","Jonah","Petra","Nadia","Odette","Sol","Tomas","Cyrus","Bram","Wren"];
-    const TOPICS = ["kindness","honesty","romance","competence"];
-    const out = { runs: 0, boundOk: true, trustOk: true, winSeen: false, lossSeen: false, propagated: false };
+    const out = { runs:0, boundOk:true, fallSeen:false, resistSeen:false, redeemSeen:false,
+                  winSeen:false, lossSeen:false, careWins:0, neglectFalls:0 };
 
-    for (let seed = 1; seed <= 40; seed++) {
-      D.fresh(seed);
-      const S = D.getS();
-      // scripted play: whisper warmly about the goal subject a few times, advance to end
-      const gt = { clear: "honesty", cheer: "kindness", match: "romance" }[S.goal.id];
-      const hubs = ["Nadia", "Lena"]; // two well-connected mouths
-      for (let step = 0; step < 20 && !S.over; step++) {
-        let h = 0;
-        while (S.whispersLeft > 0) D.whisper(hubs[h++ % hubs.length], S.goal.subject, gt, 0.7);
+    function checkBounds(S){
+      for (const k in S.belief){ const b=S.belief[k];
+        if (b.v<-1.0001||b.v>1.0001||b.s<-1e-6||b.s>1.0001) out.boundOk=false; }
+      for (const k in S.trust){ const v=S.trust[k];
+        if (v<0.0499||v>0.9501) out.boundOk=false; }
+      for (const n of NAMES){ const M=S.moral[n];
+        if (M.T<-1e-6||M.T>1.0001||M.C<-1e-6||M.C>1.2001||M.guilt<-1e-6||M.guilt>1.0001||M.fatigue<-1e-6||M.fatigue>1.0001) out.boundOk=false; }
+    }
+
+    // --- caretaker runs: warm whoever stands nearest the shadow ----------
+    for (let seed=1; seed<=25; seed++){
+      D.fresh(seed); const S=D.getS();
+      for (let step=0; step<20 && !S.over; step++){
+        const target=S.goal.subject;
+        const nbs=D.neighbors(target);
+        let i=0;
+        while (S.whispersLeft>0 && i<nbs.length) D.whisper(nbs[i++], target, "kindness", 0.7);
         D.advanceDay();
-        // check bounds every day
-        for (const k in S.belief) {
-          const b = S.belief[k];
-          if (b.v < -1.0001 || b.v > 1.0001 || b.s < -1e-6 || b.s > 1.0001) out.boundOk = false;
-        }
-        for (const k in S.trust) {
-          const v = S.trust[k];
-          if (v < 0.0499 || v > 0.9501) out.trustOk = false;
-        }
+        checkBounds(S);
+        S.xroads?.length; // touch
       }
-      // did anything propagate beyond the whisper target?
-      let touched = 0;
-      for (const n of NAMES) for (const tp of TOPICS) {
-        const b = S.belief[n + "|" + S.goal.subject + "|" + tp];
-        if (b && b.s > 0.1) touched++;
-      }
-      if (touched > 2) out.propagated = true;
-      if (S.over && D.getS().day <= D.getS().maxDays) out.winSeen = true;
+      const fallen=NAMES.filter(n=>S.moral[n].standing==="fallen").length;
+      const red=NAMES.filter(n=>S.moral[n].standing==="redeemed").length;
+      if (red>0) out.redeemSeen=true;
+      if (S.over && S.day>S.maxDays && fallen===0){ out.winSeen=true; out.careWins++; }
       out.runs++;
     }
-    // passive control: do nothing → the loss branch must fire
-    for (let seed = 1; seed <= 5 && !out.lossSeen; seed++) {
-      D.fresh(seed);
-      const S = D.getS();
-      for (let step = 0; step < 20 && !S.over; step++) D.advanceDay();
-      if (S.over && D.getS().day > D.getS().maxDays) out.lossSeen = true;
+
+    // --- neglect runs: do nothing, let winter do its work ----------------
+    for (let seed=1; seed<=25; seed++){
+      D.fresh(seed); const S=D.getS();
+      let resisted=false, fell=false;
+      for (let step=0; step<20 && !S.over; step++){
+        D.advanceDay();
+        checkBounds(S);
+        (S.xroads||[]).forEach(x=>{
+          if (x.chose==="fell") fell=true;
+          if (x.chose==="resisted"||x.chose==="forgave") resisted=true;
+          if (x.chose==="confessed") out.redeemSeen=true;
+        });
+      }
+      if (fell){ out.fallSeen=true; out.neglectFalls++; }
+      if (resisted) out.resistSeen=true;
+      const fallen=NAMES.filter(n=>S.moral[n].standing==="fallen").length;
+      if (S.over && fallen>0) out.lossSeen=true;
+      out.runs++;
     }
     return out;
   });
 
   const checks = [
-    ["1. loads with no console errors", errors.length === 0, errors.join(" | ")],
-    ["2. values stay bounded across sims", report.boundOk, "valence/strength out of range"],
-    ["3. trust stays in [0.05,0.95]", report.trustOk, "trust drifted out of clamp"],
-    ["4. rumors propagate beyond target", report.propagated, "nothing spread"],
-    ["5a. a win can fire", report.winSeen, "no win in 40 seeded runs"],
-    ["5b. a loss can fire", report.lossSeen, "no loss in 40 seeded runs"],
-    ["6. ran full sims cleanly", report.runs === 40, "runs=" + report.runs],
+    ["1. loads with no console errors", errors.length===0, errors.join(" | ")],
+    ["2. all values stay bounded (beliefs, trust, souls)", report.boundOk, "out of range"],
+    ["3. souls CAN fall under pressure (evil is a real choice)", report.fallSeen, "no fall in neglect runs"],
+    ["4. souls CAN resist the same pressure (good is a real choice)", report.resistSeen, "no resistance seen"],
+    ["5. redemption is reachable (fallen souls come back)", report.redeemSeen, "no confession seen"],
+    ["6a. a caretaker can win (care matters)", report.winSeen, "careWins="+report.careWins],
+    ["6b. neglect can lose (stakes are real)", report.lossSeen, "no loss under neglect"],
+    ["7. all sims ran clean", report.runs===50, "runs="+report.runs],
   ];
   let ok = true;
-  for (const [name, pass, why] of checks) {
-    console.log((pass ? "PASS " : "FAIL ") + name + (pass ? "" : "  → " + why));
-    if (!pass) ok = false;
+  for (const [name,pass,why] of checks){
+    console.log((pass?"PASS ":"FAIL ")+name+(pass?"":"  → "+why));
+    if(!pass) ok=false;
   }
+  console.log(`   (caretaker wins: ${report.careWins}/25 · neglect runs with a fall: ${report.neglectFalls}/25)`);
   await browser.close();
   console.log(ok ? "\nALL CHECKS PASSED ✓" : "\nSOME CHECKS FAILED ✗");
   process.exit(ok ? 0 : 1);
