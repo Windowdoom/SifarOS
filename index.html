@@ -75,6 +75,37 @@
   #overlay p{color:var(--muted); line-height:1.6; font-size:14px}
   .legend{position:absolute; left:14px; bottom:12px; font-size:11px; color:var(--muted); background:#0006; padding:8px 10px; border-radius:8px; border:1px solid var(--line); line-height:1.6}
   .swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+  /* ---------------- intro ---------------- */
+  #intro{
+    position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1000px 700px at 50% 30%, #241e44 0%, #0d0b1a 70%);
+    overflow:hidden; transition:opacity .8s ease; text-align:center;
+  }
+  #intro.gone{opacity:0; pointer-events:none}
+  #introCv{position:absolute; inset:0; width:100%; height:100%}
+  .intro-inner{position:relative; z-index:2; max-width:620px; padding:28px}
+  .intro-title{
+    font-size:56px; font-weight:600; letter-spacing:10px; margin:0;
+    background:linear-gradient(90deg,#b9a6ff,#f2c67a,#6fd6a0,#b9a6ff);
+    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:shimmer 7s linear infinite, riseIn 1.2s ease both;
+  }
+  @keyframes shimmer{to{background-position:300% 0}}
+  @keyframes riseIn{from{opacity:0; transform:translateY(18px)}to{opacity:1; transform:none}}
+  .intro-sub{color:var(--muted); font-size:15px; letter-spacing:2px; margin:6px 0 26px; animation:riseIn 1.2s .25s ease both}
+  .steps{display:flex; gap:12px; margin:0 0 26px; text-align:left}
+  .step{
+    flex:1; background:#ffffff08; border:1px solid var(--line); border-radius:12px; padding:13px 14px;
+    animation:riseIn .9s ease both;
+  }
+  .step:nth-child(1){animation-delay:.5s} .step:nth-child(2){animation-delay:.7s} .step:nth-child(3){animation-delay:.9s}
+  .step b{display:block; color:var(--warm); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px}
+  .step p{margin:0; font-size:12.5px; color:#cfc8ea; line-height:1.5}
+  .step .k{color:var(--accent); font-weight:600}
+  #beginBtn{font-size:15px; padding:12px 34px; border-radius:24px; animation:riseIn 1s 1.1s ease both; box-shadow:0 0 24px #8f7bff44}
+  .intro-foot{margin-top:14px; font-size:11.5px; color:#6f6796; animation:riseIn 1s 1.3s ease both}
+  #helpBtn{width:34px; padding:8px 0; text-align:center}
 </style>
 </head>
 <body>
@@ -85,8 +116,23 @@
     <span>Whispers left: <b id="whLeft">2</b></span>
     <button id="advBtn">Let the day unfold ▸</button>
     <button id="restartBtn" class="ghost">Restart</button>
+    <button id="helpBtn" class="ghost" title="How to play">?</button>
   </div>
 </header>
+<div id="intro">
+  <canvas id="introCv"></canvas>
+  <div class="intro-inner">
+    <h1 class="intro-title">WHISPER</h1>
+    <div class="intro-sub">a little town that talks</div>
+    <div class="steps">
+      <div class="step"><b>1 · Look</b><p><span class="k">Click</span> any townsfolk to see their heart — their temperament, and what they believe about their neighbours.</p></div>
+      <div class="step"><b>2 · Whisper</b><p>Plant one kind thought in one ear. You get <span class="k">2 whispers a day</span> — choose your mouths wisely. Gossips carry far; skeptics let things die.</p></div>
+      <div class="step"><b>3 · Let go</b><p>Press <span class="k">Let the day unfold</span>. The town talks — and twists what it heard. Warm the town's heart before <span class="k">12 days</span> pass.</p></div>
+    </div>
+    <button id="beginBtn">Enter the town ✧</button>
+    <div class="intro-foot">Once it leaves your lips, it is no longer yours.</div>
+  </div>
+</div>
 <div id="wrap">
   <div id="stage">
     <canvas id="cv"></canvas>
@@ -245,6 +291,7 @@ const Game = (function(){
   const ctx = cv.getContext("2d");
   let pos = {};              // node id -> {x,y} in unit circle coords
   let selected = null;
+  let hovered = null;
   let anim = [];             // active pulses
   let animRAF = null;
 
@@ -447,10 +494,14 @@ const Game = (function(){
     if(!S) return;
     const w=cv.width,h=cv.height;
     ctx.clearRect(0,0,w,h);
-    // edges
+    // edges (the selected person's connections light up)
+    const focus = selected || hovered;
     EDGES.forEach(([a,b])=>{
       const pa=toPx(pos[a]), pb=toPx(pos[b]), tv=trust(a,b);
-      ctx.strokeStyle = `rgba(143,123,255,${0.12+tv*0.5})`;
+      const lit = focus && (a===focus || b===focus);
+      const dim = focus && !lit;
+      ctx.strokeStyle = lit ? `rgba(242,198,122,${0.35+tv*0.55})`
+                            : `rgba(143,123,255,${(0.12+tv*0.5)*(dim?0.35:1)})`;
       ctx.lineWidth = (0.6+tv*4.2)*devicePixelRatio;
       ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
     });
@@ -473,8 +524,15 @@ const Game = (function(){
         ctx.strokeStyle="#f2c67a"; ctx.setLineDash([4*devicePixelRatio,4*devicePixelRatio]);
         ctx.lineWidth=1.5*devicePixelRatio; ctx.stroke(); ctx.setLineDash([]);
       }
+      if(hovered===id && selected!==id){
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad+5*devicePixelRatio,0,7);
+        ctx.strokeStyle="#8f7bff88"; ctx.lineWidth=1.5*devicePixelRatio; ctx.stroke();
+      }
+      ctx.save();
+      ctx.shadowColor=moodColor(id); ctx.shadowBlur=14*devicePixelRatio;
       ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,7);
       ctx.fillStyle=moodColor(id); ctx.fill();
+      ctx.restore();
       ctx.fillStyle="#141225"; ctx.font=`${11*devicePixelRatio}px 'Segoe UI',sans-serif`;
       ctx.textAlign="center"; ctx.textBaseline="middle";
       ctx.fillText(id[0], p.x, p.y);
@@ -558,12 +616,78 @@ const Game = (function(){
       if(d<bd){bd=d;best=id;} });
     return bd < 26*devicePixelRatio ? best : null;
   }
+  /* ---- intro: a drifting constellation where whispers travel ------------ */
+  function startIntro(){
+    const icv=document.getElementById("introCv"), ictx=icv.getContext("2d");
+    const stars=[], pulses=[]; let running=true;
+    function fit(){ icv.width=innerWidth*devicePixelRatio; icv.height=innerHeight*devicePixelRatio; }
+    fit(); addEventListener("resize",fit);
+    for(let i=0;i<26;i++) stars.push({
+      x:Math.random(), y:Math.random(),
+      dx:(Math.random()-.5)*.0004, dy:(Math.random()-.5)*.0004,
+      r:1.5+Math.random()*2.5, ph:Math.random()*7
+    });
+    function frame(t){
+      if(!running) return;
+      const w=icv.width,h=icv.height;
+      ictx.clearRect(0,0,w,h);
+      stars.forEach(s=>{ s.x=(s.x+s.dx+1)%1; s.y=(s.y+s.dy+1)%1; });
+      // faint links between near stars
+      for(let i=0;i<stars.length;i++)for(let j=i+1;j<stars.length;j++){
+        const a=stars[i],b=stars[j];
+        const d=Math.hypot((a.x-b.x)*w,(a.y-b.y)*h);
+        if(d<w*0.13){
+          ictx.strokeStyle=`rgba(143,123,255,${(1-d/(w*0.13))*0.22})`;
+          ictx.lineWidth=devicePixelRatio;
+          ictx.beginPath(); ictx.moveTo(a.x*w,a.y*h); ictx.lineTo(b.x*w,b.y*h); ictx.stroke();
+        }
+      }
+      // occasionally a whisper travels a link
+      if(Math.random()<0.03){
+        const a=stars[(Math.random()*stars.length)|0], b=stars[(Math.random()*stars.length)|0];
+        if(a!==b) pulses.push({a,b,t:0,warm:Math.random()<0.7});
+      }
+      for(let i=pulses.length-1;i>=0;i--){
+        const p=pulses[i]; p.t+=0.012;
+        if(p.t>=1){ pulses.splice(i,1); continue; }
+        const x=(p.a.x+(p.b.x-p.a.x)*p.t)*w, y=(p.a.y+(p.b.y-p.a.y)*p.t)*h;
+        ictx.beginPath(); ictx.arc(x,y,3.2*devicePixelRatio,0,7);
+        ictx.fillStyle=p.warm?"rgba(111,214,160,.85)":"rgba(242,198,122,.85)"; ictx.fill();
+      }
+      stars.forEach(s=>{
+        const tw=0.55+0.45*Math.sin(t/900+s.ph);
+        ictx.beginPath(); ictx.arc(s.x*w,s.y*h,s.r*devicePixelRatio,0,7);
+        ictx.fillStyle=`rgba(185,166,255,${0.35*tw+0.15})`; ictx.fill();
+      });
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return ()=>{ running=false; };
+  }
+
   function init(){
     layout();
+    let stopIntro=startIntro();
+    const introEl=document.getElementById("intro");
+    document.getElementById("beginBtn").onclick=()=>{
+      introEl.classList.add("gone");
+      setTimeout(()=>{ if(stopIntro){stopIntro(); stopIntro=null;} },850);
+      resize();
+    };
+    document.getElementById("helpBtn").onclick=()=>{
+      introEl.classList.remove("gone");
+      if(!stopIntro) stopIntro=startIntro();
+    };
     cv.addEventListener("click",e=>{
       const r=cv.getBoundingClientRect();
       const id=hit((e.clientX-r.left)*devicePixelRatio,(e.clientY-r.top)*devicePixelRatio);
       if(id) showNPC(id);
+    });
+    cv.addEventListener("mousemove",e=>{
+      const r=cv.getBoundingClientRect();
+      const id=hit((e.clientX-r.left)*devicePixelRatio,(e.clientY-r.top)*devicePixelRatio);
+      cv.style.cursor = id ? "pointer" : "default";
+      if(id!==hovered){ hovered=id; render(); }
     });
     document.getElementById("advBtn").onclick=advanceDay;
     document.getElementById("restartBtn").onclick=reset;
@@ -578,7 +702,7 @@ const Game = (function(){
   function reset(){
     document.getElementById("overlay").style.display="none";
     S = fresh((Math.random()*1e9)|0);
-    selected=null; anim=[];
+    selected=null; hovered=null; anim=[];
     document.getElementById("selHint").style.display="block";
     document.getElementById("selBody").style.display="none";
     document.getElementById("whisperBox").classList.remove("on");
