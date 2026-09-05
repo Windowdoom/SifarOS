@@ -11,6 +11,7 @@ source tools/common.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
 QEMU=${QEMU:-qemu-system-i386}
+CPU=${CPU:-max}
 MEMORY=${MEMORY:-512}
 LOG=${LOG:-build/test-output.log}
 LOG2=${LOG2:-build/test-reboot.log}
@@ -42,6 +43,7 @@ run_session() {
     } | run_limited "$TIMEOUT" "$QEMU" \
             -drive "format=raw,file=$IMAGE" \
             -m "$MEMORY" \
+            -cpu "$CPU" \
             -netdev user,id=sifarnet \
             -device rtl8139,netdev=sifarnet \
             -display none \
