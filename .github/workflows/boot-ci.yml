@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - sifar/hardening-v1
+      - sifar/2.0-dev
   pull_request:
 
 jobs:
