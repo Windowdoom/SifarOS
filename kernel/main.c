@@ -13,6 +13,7 @@
 #include <kernel/string.h>
 #include <kernel/mm.h>
 #include <kernel/sched.h>
+#include <kernel/adaptive.h>
 #include <kernel/io.h>
 #include <kernel/fs.h>
 #include <kernel/proc.h>
@@ -167,7 +168,7 @@ static void status_thread(void *arg)
                   (uint32_t)(used / KB));
         if (!gfx_available())
             vga_status(line);
-        thread_sleep_ms(500);
+        thread_sleep_ms(adaptive_background_interval_ms());
     }
 }
 
@@ -228,6 +229,7 @@ void kmain(struct bootinfo *info)
     }
 
     proc_init();
+    adaptive_init();
     vfs_init();
 
     if (ata_init() == 0) {
@@ -255,11 +257,14 @@ void kmain(struct bootinfo *info)
     kprintf("syscall: int 0x80 gate installed\n");
 
     sched_init();
+    if (adaptive_start() < 0)
+        panic("adaptive: cannot start policy thread");
     sti();
 
     thread_create("status", status_thread, NULL);
     thread_create("shell", shell_thread, NULL);
     kprintf("sched  : preemptive round robin, %d thread(s)\n", thread_count());
+    kprintf("adapt  : self-adapting policy engine online\n");
 
     kprintf("\nboot complete in %u ms\n", (uint32_t)timer_ms());
     print_motd();
