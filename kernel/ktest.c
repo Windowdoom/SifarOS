@@ -2,7 +2,7 @@
  * In-kernel test suite.
  *
  * These run on the real hardware state of a booted system, which makes them
- * the closest thing the project has to integration tests.  tools/test.sh
+ * the closest thing the project has to integration tests. tools/test.sh
  * drives them over the serial console and checks the summary line.
  */
 #include <kernel/ktest.h>
@@ -87,11 +87,28 @@ static void test_pmm(void)
 
 static void test_paging(void)
 {
-    phys_addr_t frame = pmm_alloc_frame(); virt_addr_t scratch = 0xEF000000u; volatile uint32_t *probe=(volatile uint32_t *)scratch;
-    suite("paging"); check(frame != 0, "got a frame to map"); check(vmm_map(scratch, frame, PTE_PRESENT|PTE_WRITE)==0,"vmm_map succeeds");
-    check(vmm_is_mapped(scratch),"the page reports as mapped"); check(vmm_translate(scratch)==frame,"translation returns the frame");
-    *probe=0x5EEDF00Du; check(*probe==0x5EEDF00Du,"the mapping is readable and writable"); check(*(volatile uint32_t *)frame==0x5EEDF00Du,"identity mapping agrees");
-    vmm_unmap(scratch); check(!vmm_is_mapped(scratch),"unmapping clears the entry"); pmm_free_frame(frame);
+    phys_addr_t frame = pmm_alloc_frame();
+    phys_addr_t wx_frame = pmm_alloc_frame();
+    virt_addr_t scratch = 0xEF000000u;
+    virt_addr_t wx_scratch = 0xEF001000u;
+    volatile uint32_t *probe = (volatile uint32_t *)scratch;
+
+    suite("paging");
+    check(cpu_has_pae(), "CPU exposes PAE");
+    check(cpu_has_nx(), "CPU exposes NX");
+    check(frame != 0 && wx_frame != 0, "got frames to map");
+    check(vmm_map(scratch, frame, PTE_PRESENT | PTE_WRITE) == 0, "RW+NX mapping succeeds");
+    check(vmm_is_mapped(scratch), "the page reports as mapped");
+    check(vmm_translate(scratch) == frame, "translation returns the frame");
+    *probe = 0x5EEDF00Du;
+    check(*probe == 0x5EEDF00Du, "the mapping is readable and writable");
+    check(*(volatile uint32_t *)frame == 0x5EEDF00Du, "identity mapping agrees");
+    check(vmm_map(wx_scratch, wx_frame, PTE_PRESENT | PTE_WRITE | PTE_EXEC) < 0,
+          "VMM rejects writable executable mappings");
+    vmm_unmap(scratch);
+    check(!vmm_is_mapped(scratch), "unmapping clears the entry");
+    pmm_free_frame(frame);
+    pmm_free_frame(wx_frame);
 }
 
 static void test_heap(void)
@@ -129,7 +146,50 @@ static void test_graphics(void){uint32_t pixels[32*16];struct gfx_surface surfac
 
 static void test_elf(void){const struct embedded_program*program=program_find("hello");suite("elf");check(program!=NULL,"embedded program is present");if(!program)return;check(elf_is_valid(program->start,(size_t)(program->end-program->start)),"embedded image is valid ELF");check(!elf_is_valid((const uint8_t*)"not an elf at all",17),"rubbish is rejected");{const struct elf32_ehdr*h=(const struct elf32_ehdr*)program->start;check(h->entry>=USER_MIN&&h->entry<USER_MAX,"entry point is in user range");check(h->phnum>0,"image has program headers");}}
 static void test_processes(void){const struct embedded_program*program=program_find("hello");int pid,code=-1,before=proc_count();suite("processes");check(proc_current()!=NULL,"current process exists");check(proc_kernel()->pid==0,"kernel is process zero");if(!program)return;pid=proc_spawn_image("ktest-hello",program->start,(size_t)(program->end-program->start),1,(const char*const[]){"ktest-hello"});check(pid>0,"program can be loaded and started");if(pid<=0)return;check(proc_by_pid(pid)!=NULL,"new process is in table");check(proc_count()>before,"process count went up");check(proc_wait(pid,&code)==0,"waiting succeeds");check(code==7,"exit status comes back");check(proc_by_pid(pid)==NULL,"process is gone once reaped");}
-static void test_address_spaces(void){struct addr_space space;phys_addr_t frame;virt_addr_t user_page=USER_MIN+0x10000;suite("address spaces");check(vmm_space_create(&space)==0,"new address space can be created");check(space.pd!=NULL&&space.pd_phys!=0,"it has a page directory");check(space.pd[0]==vmm_kernel_space()->pd[0],"identity map is shared");check(space.pd[KERNEL_HEAP_BASE>>22]==vmm_kernel_space()->pd[KERNEL_HEAP_BASE>>22],"kernel heap is shared");check(space.pd[USER_MIN>>22]==0,"user half starts empty");frame=pmm_alloc_frame();check(frame!=0,"got a frame for a user page");check(vmm_map_in(&space,user_page,frame,PTE_PRESENT|PTE_WRITE|PTE_USER)==0,"mapping into another space works");check(vmm_translate_in(&space,user_page)==frame,"other space translates it");check(vmm_translate_in(vmm_kernel_space(),user_page)==0,"kernel space does not see user mapping");check(space.pd[user_page>>22]&PTE_USER,"directory carries user bit");vmm_space_destroy(&space);check(space.pd==NULL,"destroying space releases it");}
+
+static void test_address_spaces(void)
+{
+    struct addr_space space;
+    struct addr_space *kernel = vmm_kernel_space();
+    phys_addr_t frame;
+    phys_addr_t exec_frame;
+    phys_addr_t wx_frame;
+    virt_addr_t user_page = USER_MIN + 0x10000u;
+    virt_addr_t exec_page = user_page + PAGE_SIZE;
+    virt_addr_t wx_page = exec_page + PAGE_SIZE;
+    uint32_t heap_pd = (KERNEL_HEAP_BASE >> 21) & 0x1FFu;
+    uint32_t user_pdpt = user_page >> 30;
+    uint32_t user_pd = (user_page >> 21) & 0x1FFu;
+
+    suite("address spaces");
+    check(vmm_space_create(&space) == 0, "new PAE address space can be created");
+    check(space.pdpt != NULL && space.pdpt_phys != 0, "it has a PDPT");
+    check(space.pd[0] == kernel->pd[0], "low kernel page directory is shared");
+    check(space.pd[3][heap_pd] == kernel->pd[3][heap_pd], "kernel heap page table is shared");
+    check(space.pd[user_pdpt][user_pd] == 0, "user page directory starts empty");
+
+    frame = pmm_alloc_frame();
+    exec_frame = pmm_alloc_frame();
+    wx_frame = pmm_alloc_frame();
+    check(frame && exec_frame && wx_frame, "got frames for user mappings");
+    check(vmm_map_in(&space, user_page, frame,
+                     PTE_PRESENT | PTE_WRITE | PTE_USER) == 0,
+          "RW user mapping succeeds and is NX by default");
+    check(vmm_translate_in(&space, user_page) == frame, "other space translates it");
+    check(vmm_translate_in(kernel, user_page) == 0, "kernel space does not see private user mapping");
+    check(space.pd[user_pdpt][user_pd] & PTE_USER, "directory carries user bit");
+    check(vmm_map_in(&space, exec_page, exec_frame,
+                     PTE_PRESENT | PTE_USER | PTE_EXEC) == 0,
+          "RX user mapping succeeds");
+    check(vmm_map_in(&space, wx_page, wx_frame,
+                     PTE_PRESENT | PTE_WRITE | PTE_USER | PTE_EXEC) < 0,
+          "W+X user mapping is rejected");
+    pmm_free_frame(wx_frame);
+
+    vmm_space_destroy(&space);
+    check(space.pdpt == NULL, "destroying space releases the PDPT");
+}
+
 static void test_disk(void){struct blockdev*disk=ata_device();uint8_t*first,*second;suite("disk");if(!disk){check(0,"ATA disk is attached");return;}check(disk->sectors>0,"disk reports a size");check(sfs_mounted(),"SifarFS is mounted");first=(uint8_t*)kmalloc(SECTOR_SIZE);second=(uint8_t*)kmalloc(SECTOR_SIZE);if(!first||!second){check(0,"scratch buffers");kfree(first);kfree(second);return;}check(disk->read(disk,0,1,first)==0,"sector zero reads");check(first[510]==0x55&&first[511]==0xAA,"boot signature is on disk");{uint32_t scratch_lba=disk->sectors-1;memset(second,0,SECTOR_SIZE);check(disk->read(disk,scratch_lba,1,second)==0,"spare sector reads");for(int i=0;i<SECTOR_SIZE;i++)second[i]=(uint8_t)(i^0x5A);check(disk->write(disk,scratch_lba,1,second)==0,"it writes back");memset(second,0,SECTOR_SIZE);check(disk->read(disk,scratch_lba,1,second)==0,"and reads again");{int intact=1;for(int i=0;i<SECTOR_SIZE;i++)if(second[i]!=(uint8_t)(i^0x5A))intact=0;check(intact,"round trip preserves data");}}kfree(first);kfree(second);}
 static void test_persistence(void){static const char payload[]="ktest wrote this to the disk\n";char buffer[64];ssize_t n;suite("persistence");if(!sfs_mounted()){check(0,"disk filesystem is mounted");return;}check(vfs_write_file("/tmp/ktest-disk.txt",payload,sizeof(payload)-1)==0,"file can be written");n=vfs_read_file("/tmp/ktest-disk.txt",buffer,sizeof(buffer)-1);buffer[n>0?n:0]='\0';check(n==(ssize_t)(sizeof(payload)-1)&&strcmp(buffer,payload)==0,"reads back byte for byte");check(vfs_unlink(NULL,"/tmp/ktest-disk.txt")==0,"file can be removed");}
 static void test_floating_point(void){volatile double a=3.5,b=1.25;suite("floating point");check(fpu_present(),"FPU is available");check((int)(a*b*100.0)==437,"arithmetic works in kernel");a=12345.75;sched_yield();check((int)(a*2.0)==24691,"registers survive context switch");}
