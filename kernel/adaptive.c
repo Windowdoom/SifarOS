@@ -108,7 +108,9 @@ static void mode_policy(enum adaptive_mode mode, uint32_t *quantum,
     }
 }
 
-static void apply_mode(enum adaptive_mode mode)
+static void apply_mode(enum adaptive_mode mode, const char *reason,
+                       const struct thread_sample *threads,
+                       uint32_t free_percent, uint32_t threat)
 {
     uint32_t quantum;
     uint32_t background_ms;
@@ -123,10 +125,13 @@ static void apply_mode(enum adaptive_mode mode)
     state.generation++;
     sched_set_quantum_ticks(quantum);
 
-    if (mode != previous)
-        kprintf("adapt  : %s -> %s (q=%u, net=%u KiB)\n",
+    if (mode != previous) {
+        kprintf("adapt  : %s -> %s (q=%u, net=%u KiB) reason=%s run=%u free=%u%% threat=%u gen=%u\n",
                 adaptive_mode_name(previous), adaptive_mode_name(mode),
-                quantum, network_limit / KB);
+                quantum, network_limit / KB, reason ? reason : "unknown",
+                threads ? threads->runnable : 0, free_percent, threat,
+                state.generation);
+    }
 }
 
 static enum adaptive_mode choose_mode(const struct thread_sample *threads,
@@ -134,23 +139,46 @@ static enum adaptive_mode choose_mode(const struct thread_sample *threads,
                                       uint32_t free_percent,
                                       uint32_t threat,
                                       uint64_t interaction_ms,
-                                      uint64_t now)
+                                      uint64_t now,
+                                      const char **reason)
 {
-    if (threat >= 6u)
+    if (threat >= 6u) {
+        *reason = "threat";
         return ADAPTIVE_DEFENSIVE;
+    }
 
-    if (free_percent <= 10u ||
-        (free_percent <= 20u && threads->runnable >= 6u))
+    if (free_percent <= 10u) {
+        *reason = "low-memory";
         return ADAPTIVE_PRESSURE;
+    }
 
-    if ((interaction_ms && now - interaction_ms <= INTERACTIVE_WINDOW_MS) ||
-        threads->runnable >= 5u || threads->user >= 3u)
+    if (free_percent <= 20u && threads->runnable >= 6u) {
+        *reason = "memory+runqueue";
+        return ADAPTIVE_PRESSURE;
+    }
+
+    if (interaction_ms && now - interaction_ms <= INTERACTIVE_WINDOW_MS) {
+        *reason = "interaction";
         return ADAPTIVE_RESPONSIVE;
+    }
+
+    if (threads->runnable >= 5u) {
+        *reason = "runqueue";
+        return ADAPTIVE_RESPONSIVE;
+    }
+
+    if (threads->user >= 3u) {
+        *reason = "user-workload";
+        return ADAPTIVE_RESPONSIVE;
+    }
 
     if (threads->runnable <= 2u && processes <= 2u &&
-        (!interaction_ms || now - interaction_ms >= QUIET_AFTER_MS))
+        (!interaction_ms || now - interaction_ms >= QUIET_AFTER_MS)) {
+        *reason = "idle";
         return ADAPTIVE_QUIET;
+    }
 
+    *reason = "steady";
     return ADAPTIVE_BALANCED;
 }
 
@@ -178,6 +206,7 @@ static void sample_once(void)
     uint64_t interaction_ms;
     uint32_t threat;
     enum adaptive_mode desired;
+    const char *reason = "steady";
     uint32_t flags;
 
     flags = irq_save();
@@ -193,7 +222,7 @@ static void sample_once(void)
     state.threat_score = threat;
 
     desired = choose_mode(&threads, processes, free_percent, threat,
-                          interaction_ms, now);
+                          interaction_ms, now, &reason);
 
     /* Defensive transitions happen immediately. Everything else must remain
      * the best policy for several consecutive samples to prevent oscillation. */
@@ -210,7 +239,7 @@ static void sample_once(void)
 
     if (candidate_count >= HYSTERESIS_SAMPLES &&
         state.mode != (uint32_t)candidate_mode)
-        apply_mode(candidate_mode);
+        apply_mode(candidate_mode, reason, &threads, free_percent, threat);
 }
 
 static void adaptive_thread(void *arg)
