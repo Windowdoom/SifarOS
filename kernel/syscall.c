@@ -1,10 +1,9 @@
 /*
  * System call dispatch.
  *
- * User programs trap in through int 0x80.  Every pointer that crosses the
- * boundary is validated against the calling process's own address space
- * first, so ring 3 can never talk the kernel into touching memory that does
- * not belong to it.
+ * User programs trap in through int 0x80. Every pointer that crosses the
+ * privilege boundary is checked against the calling process's address space.
+ * Inputs require readable user pages; outputs require writable user pages.
  */
 #include <kernel/types.h>
 #include <kernel/version.h>
@@ -26,10 +25,9 @@
 #include <sys/gui.h>
 #include <sys/sysinfo.h>
 
-
 /* Validate a user pointer that the kernel is about to write a structure to. */
 #define USER_STRUCT(ptr, type) \
-    (proc_user_range_ok((const void *)(uintptr_t)(ptr), sizeof(type)) ? \
+    (proc_user_write_ok((void *)(uintptr_t)(ptr), sizeof(type)) ? \
      (type *)(uintptr_t)(ptr) : NULL)
 
 static int32_t sys_write(uint32_t fd, uint32_t buf, uint32_t len)
@@ -47,7 +45,7 @@ static int32_t sys_read(uint32_t fd, uint32_t buf, uint32_t len)
     char *dst = (char *)(uintptr_t)buf;
     uint32_t i = 0;
 
-    if (fd != 0 || !proc_user_range_ok(dst, len))
+    if (fd != 0 || !proc_user_write_ok(dst, len))
         return -1;
 
     while (i < len) {
@@ -87,7 +85,7 @@ static int32_t sys_fs_read(uint32_t path_ptr, uint32_t buf, uint32_t len)
 
     if (proc_copy_user_string((const char *)(uintptr_t)path_ptr, path, sizeof(path)) < 0)
         return -1;
-    if (!proc_user_range_ok((void *)(uintptr_t)buf, len))
+    if (!proc_user_write_ok((void *)(uintptr_t)buf, len))
         return -1;
     if (vfs_abspath(proc_current()->cwd, path, absolute, sizeof(absolute)) < 0)
         return -1;
@@ -103,15 +101,17 @@ static int32_t sys_spawn(uint32_t path_ptr, uint32_t argv_ptr, uint32_t argc)
     if (proc_copy_user_string((const char *)(uintptr_t)path_ptr, path, sizeof(path)) < 0)
         return -1;
 
-    if (argc > 8)
-        argc = 8;
+    if (argc > ARRAY_SIZE(argv))
+        argc = ARRAY_SIZE(argv);
 
     for (uint32_t i = 0; i < argc; i++) {
         const char *const *user_argv = (const char *const *)(uintptr_t)argv_ptr;
+        const char *user_arg;
 
-        if (!proc_user_range_ok(user_argv + i, sizeof(char *)))
+        if (!proc_user_range_ok(user_argv + i, sizeof(*user_argv)))
             return -1;
-        if (proc_copy_user_string(user_argv[i], storage[i], sizeof(storage[i])) < 0)
+        user_arg = user_argv[i];
+        if (proc_copy_user_string(user_arg, storage[i], sizeof(storage[i])) < 0)
             return -1;
         argv[i] = storage[i];
     }
@@ -126,11 +126,15 @@ static int32_t sys_opendir(uint32_t path_ptr, uint32_t out_ptr, uint32_t max)
     char path[FS_PATH_MAX];
     struct fs_node *node;
     struct sys_dirent *out = (struct sys_dirent *)(uintptr_t)out_ptr;
+    size_t bytes;
     int count = 0;
 
     if (proc_copy_user_string((const char *)(uintptr_t)path_ptr, path, sizeof(path)) < 0)
         return -1;
-    if (!proc_user_range_ok(out, max * sizeof(struct sys_dirent)))
+    if (max > SIZE_MAX / sizeof(struct sys_dirent))
+        return -1;
+    bytes = (size_t)max * sizeof(struct sys_dirent);
+    if (!proc_user_write_ok(out, bytes))
         return -1;
 
     node = vfs_lookup(proc_current()->cwd, path);
@@ -173,7 +177,8 @@ static int32_t sys_path_op(uint32_t path_ptr, int operation)
     char path[FS_PATH_MAX];
     struct process *proc = proc_current();
 
-    if (proc_copy_user_string((const char *)(uintptr_t)path_ptr, path, sizeof(path)) < 0)
+    if (!proc || proc_copy_user_string((const char *)(uintptr_t)path_ptr,
+                                       path, sizeof(path)) < 0)
         return -1;
 
     switch (operation) {
@@ -217,7 +222,7 @@ static int32_t sys_getcwd(uint32_t buf, uint32_t len)
 {
     char *out = (char *)(uintptr_t)buf;
 
-    if (!proc_user_range_ok(out, len))
+    if (len == 0 || !proc_user_write_ok(out, len))
         return -1;
     strlcpy(out, proc_current()->cwd, len);
     return 0;
@@ -278,10 +283,14 @@ static int32_t sys_gui_wait(uint32_t id, uint32_t out_ptr, uint32_t timeout_ms)
 static int32_t sys_gui_list(uint32_t out_ptr, uint32_t max)
 {
     struct gui_window_desc *out = (struct gui_window_desc *)(uintptr_t)out_ptr;
+    size_t bytes;
 
     if (max > GUI_MAX_WINDOWS)
         max = GUI_MAX_WINDOWS;
-    if (!proc_user_range_ok(out, max * sizeof(struct gui_window_desc)))
+    if (max > SIZE_MAX / sizeof(struct gui_window_desc))
+        return -1;
+    bytes = (size_t)max * sizeof(struct gui_window_desc);
+    if (!proc_user_write_ok(out, bytes))
         return -1;
     return wm_list_windows(out, (int)max);
 }
@@ -340,7 +349,7 @@ static void collect_process(const struct process *proc, void *ctx)
 {
     struct proclist_state *state = (struct proclist_state *)ctx;
 
-    if (state->count >= state->max)
+    if (!state || !proc || state->count >= state->max)
         return;
 
     state->out[state->count].pid = (uint32_t)proc->pid;
@@ -355,12 +364,19 @@ static void collect_process(const struct process *proc, void *ctx)
 static int32_t sys_proclist(uint32_t out_ptr, uint32_t max)
 {
     struct proclist_state state;
+    size_t bytes;
+
+    if (max > MAX_PROCESSES)
+        max = MAX_PROCESSES;
+    if (max > SIZE_MAX / sizeof(struct sys_proc))
+        return -1;
 
     state.out = (struct sys_proc *)(uintptr_t)out_ptr;
     state.max = max;
     state.count = 0;
+    bytes = (size_t)max * sizeof(struct sys_proc);
 
-    if (!proc_user_range_ok(state.out, max * sizeof(struct sys_proc)))
+    if (!proc_user_write_ok(state.out, bytes))
         return -1;
 
     proc_foreach(collect_process, &state);
@@ -389,7 +405,7 @@ static int32_t sys_log(uint32_t buf, uint32_t len)
 {
     char *out = (char *)(uintptr_t)buf;
 
-    if (!proc_user_range_ok(out, len))
+    if (!proc_user_write_ok(out, len))
         return -1;
     return (int32_t)console_log_read(out, len);
 }
@@ -400,7 +416,7 @@ static void syscall_handler(struct registers *regs)
     uint32_t arg1 = regs->ebx;
     uint32_t arg2 = regs->ecx;
     uint32_t arg3 = regs->edx;
-    int32_t  result = -1;
+    int32_t result = -1;
 
     switch (number) {
     case SYS_EXIT:
@@ -555,7 +571,7 @@ static void syscall_handler(struct registers *regs)
 
         if (arg2 > 4096)
             arg2 = 4096;
-        if (!proc_user_range_ok(out, arg2)) {
+        if (!proc_user_write_ok(out, arg2)) {
             result = -1;
             break;
         }
