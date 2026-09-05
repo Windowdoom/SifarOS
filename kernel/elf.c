@@ -1,26 +1,42 @@
 /*
  * ELF32 program loader.
  *
- * Only what a static executable needs: walk the program headers, map pages
- * for every PT_LOAD segment and copy the bytes in.  No dynamic linking, no
- * relocation, no interpreter.
+ * Static executables only.  The loader treats the ELF file as untrusted input:
+ * every table arithmetic operation is overflow checked, load segments must fit
+ * inside the user address range, and W+X segments are rejected.
  */
 #include <kernel/elf.h>
 #include <kernel/mm.h>
 #include <kernel/string.h>
 #include <kernel/kprintf.h>
 
+static int range_within(size_t offset, size_t length, size_t total)
+{
+    return offset <= total && length <= total - offset;
+}
+
 int elf_is_valid(const uint8_t *image, size_t size)
 {
-    const struct elf32_ehdr *header = (const struct elf32_ehdr *)image;
+    const struct elf32_ehdr *header;
 
-    if (size < sizeof(*header))
+    if (!image || size < sizeof(struct elf32_ehdr))
         return 0;
+
+    header = (const struct elf32_ehdr *)image;
     if (header->magic != ELF_MAGIC)
         return 0;
-    if (header->class != 1 || header->data != 1)
+    if (header->class != 1 || header->data != 1 || header->version != 1)
         return 0;
-    if (header->type != 2 || header->machine != 3)
+    if (header->type != 2 || header->machine != 3 || header->elf_version != 1)
+        return 0;
+    if (header->ehsize != sizeof(struct elf32_ehdr))
+        return 0;
+    if (header->phentsize != sizeof(struct elf32_phdr))
+        return 0;
+    if (header->phnum == 0)
+        return 0;
+    if (!range_within(header->phoff,
+                      (size_t)header->phnum * sizeof(struct elf32_phdr), size))
         return 0;
     return 1;
 }
@@ -57,24 +73,47 @@ int elf_load(struct addr_space *space, const uint8_t *image, size_t size,
 {
     const struct elf32_ehdr *header = (const struct elf32_ehdr *)image;
     virt_addr_t highest = 0;
+    int entry_executable = 0;
 
-    if (!elf_is_valid(image, size))
-        return -1;
-    if (header->phoff + (uint32_t)header->phnum * header->phentsize > size)
+    if (!space || !elf_is_valid(image, size))
         return -1;
 
     for (uint16_t i = 0; i < header->phnum; i++) {
         const struct elf32_phdr *segment =
-            (const struct elf32_phdr *)(image + header->phoff + i * header->phentsize);
-        uint32_t flags = PTE_PRESENT | PTE_USER | PTE_WRITE;
+            (const struct elf32_phdr *)(image + header->phoff +
+                                        (size_t)i * header->phentsize);
+        uint32_t flags;
+        uint32_t end;
 
         if (segment->type != PT_LOAD || segment->memsz == 0)
             continue;
 
-        /* Refuse anything that wants to live outside the user range. */
+        /* File bytes must be contained in the input image and in the segment. */
+        if (segment->filesz > segment->memsz ||
+            !range_within(segment->offset, segment->filesz, size))
+            return -1;
+
+        /* Reject address arithmetic wraparound and kernel-space mappings. */
         if (segment->vaddr < USER_MIN ||
-            segment->vaddr + segment->memsz > USER_MAX ||
-            segment->offset + segment->filesz > size)
+            segment->memsz > USER_MAX - segment->vaddr)
+            return -1;
+        end = segment->vaddr + segment->memsz;
+        if (end > USER_MAX)
+            return -1;
+
+        /* This kernel has no executable-page bit yet, so enforce W^X here. */
+        if ((segment->flags & (PF_W | PF_X)) == (PF_W | PF_X))
+            return -1;
+
+        flags = PTE_PRESENT | PTE_USER;
+        if (segment->flags & PF_W)
+            flags |= PTE_WRITE;
+
+        if (segment->align &&
+            (segment->align & (segment->align - 1)) != 0)
+            return -1;
+        if (segment->align > 1 &&
+            ((segment->vaddr - segment->offset) & (segment->align - 1)) != 0)
             return -1;
 
         if (vmm_alloc_range(space, segment->vaddr, segment->memsz, flags) < 0)
@@ -85,13 +124,16 @@ int elf_load(struct addr_space *space, const uint8_t *image, size_t size,
                            segment->filesz) < 0)
             return -1;
 
-        /* vmm_alloc_range hands out zeroed frames, so .bss is already clear. */
+        if (header->entry >= segment->vaddr && header->entry < end &&
+            (segment->flags & PF_X))
+            entry_executable = 1;
 
-        if (segment->vaddr + segment->memsz > highest)
-            highest = segment->vaddr + segment->memsz;
+        /* vmm_alloc_range hands out zeroed frames, so .bss is already clear. */
+        if (end > highest)
+            highest = end;
     }
 
-    if (!highest)
+    if (!highest || !entry_executable)
         return -1;
 
     if (entry)
