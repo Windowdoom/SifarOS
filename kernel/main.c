@@ -61,9 +61,9 @@ static void report_memory(const struct bootinfo *info)
             usable += map[i].length;
     }
 
-    kprintf("         %u MiB usable, %u KiB frame bitmap covers %u frames\n",
+    kprintf("         %u MiB usable, %u MiB managed in direct map (%u frames)\n",
             (uint32_t)(usable / MB),
-            (uint32_t)((pmm_total_frames() / 8) / KB),
+            (uint32_t)(((uint64_t)pmm_total_frames() * PAGE_SIZE) / MB),
             pmm_total_frames());
 }
 
@@ -269,7 +269,12 @@ void kmain(struct bootinfo *info)
             console_set_screen_output(1);
             kprintf("desktop: /apps/desktop did not start (error %d)\n", pid);
         } else {
-            kprintf("desktop: started as process %d\n", pid);
+            /* The desktop is the only user process allowed to manage other
+             * applications' windows or invoke machine power controls. These
+             * privileges are kernel-granted and are not inherited by apps the
+             * desktop launches. */
+            proc_grant_caps(pid, PROC_CAP_WINDOW_CONTROL | PROC_CAP_SYSTEM_CONTROL);
+            kprintf("desktop: started as process %d with shell capabilities\n", pid);
         }
     }
 
