@@ -1,0 +1,48 @@
+name: Genesis CI
+
+on:
+  push:
+    branches:
+      - sifar/genesis-v0.1
+  pull_request:
+    branches:
+      - sifar/genesis-v0.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-multilib binutils nasm qemu-system-x86 python3
+
+      - name: Build with warnings as errors
+        run: make clean && make
+
+      - name: Serial and kernel tests
+        run: make test
+
+      - name: Desktop integration tests
+        run: make test-gui
+
+      - name: Record artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-ci-artifacts
+          path: |
+            build/test-output.log
+            build/test-reboot.log
+            build/gui-test.log
+            build/shots/*.png
+            build/sifaros.img
+          if-no-files-found: ignore
