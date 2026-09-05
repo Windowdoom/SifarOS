@@ -14,6 +14,7 @@
 #include <kernel/kprintf.h>
 #include <kernel/string.h>
 #include <kernel/io.h>
+#include <kernel/security.h>
 #include <arch/x86.h>
 #include <kernel/wm.h>
 #include <sys/syscall.h>
@@ -297,6 +298,8 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
         return -7;
     }
     proc->main_tid = tid;
+    security_event_record(SECURITY_EVENT_PROCESS_START, (uint32_t)proc->pid,
+                          0, SECURITY_RESPONSE_NONE);
     return proc->pid;
 }
 
@@ -332,6 +335,8 @@ void proc_exit(int code)
     if (proc != kernel_process) {
         proc->exit_code = code;
         proc->state = PROC_ZOMBIE;
+        security_event_record(SECURITY_EVENT_PROCESS_EXIT, (uint32_t)proc->pid,
+                              (uint32_t)code, SECURITY_RESPONSE_NONE);
     }
     thread_exit(code);
 }
@@ -390,5 +395,7 @@ int proc_kill(int pid)
     thread_kill(proc->main_tid);
     proc->exit_code = -1;
     proc->state = PROC_ZOMBIE;
+    security_event_record(SECURITY_EVENT_PROCESS_EXIT, (uint32_t)proc->pid,
+                          0xFFFFFFFFu, SECURITY_RESPONSE_KILL);
     return 0;
 }
