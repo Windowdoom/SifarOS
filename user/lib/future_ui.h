@@ -149,6 +149,35 @@ static void fu_chip(ui_window *w, int x, int y, const char *label,
     fu_text(w, x + 17, y + 5, label, UI_TEXT);
 }
 
+static int fu_button(ui_window *w, int x, int y, int width, int height,
+                     const char *label, uint32_t accent)
+{
+    int id = ++w->widget_counter;
+    int hover = ui_hit(w, x, y, width, height);
+    int clicked = 0;
+    uint32_t face = hover ? UI_PANEL_LIGHT : UI_SURFACE_ALT;
+
+    if (hover && w->mouse_pressed) {
+        w->active = id;
+        w->focus = id;
+    }
+    if (w->active == id && w->mouse_released) {
+        if (hover)
+            clicked = 1;
+        w->active = 0;
+    }
+
+    if (w->active == id && hover)
+        face = UI_SURFACE;
+
+    ui_round_fill(w, x, y, width, height, height / 2, face);
+    if (accent)
+        ui_fill(w, x + 11, y + height - 5, width - 22, 2, accent);
+    fu_text_center(w, x, y + (height - UI_GLYPH_H) / 2, width, label,
+                   hover ? UI_WHITE : UI_TEXT);
+    return clicked;
+}
+
 static void fu_section_title(ui_window *w, int x, int y, const char *eyebrow,
                              const char *title)
 {
