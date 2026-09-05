@@ -9,12 +9,15 @@
 #define MAX_PROCESSES 32
 
 /* Kernel-granted privileges. They are deliberately not inherited by child
- * processes and there is no userspace syscall for granting them. */
+ * processes and there is no userspace syscall for granting or restoring them. */
 #define PROC_CAP_WINDOW_CONTROL  0x00000001u
 #define PROC_CAP_SYSTEM_CONTROL  0x00000002u
 #define PROC_CAP_PROCESS_CONTROL 0x00000004u
 #define PROC_CAP_PROCESS_INSPECT 0x00000008u
 #define PROC_CAP_NETWORK         0x00000010u
+#define PROC_CAP_ALL             (PROC_CAP_WINDOW_CONTROL | PROC_CAP_SYSTEM_CONTROL | \
+                                  PROC_CAP_PROCESS_CONTROL | PROC_CAP_PROCESS_INSPECT | \
+                                  PROC_CAP_NETWORK)
 
 enum proc_state {
     PROC_FREE = 0,
@@ -48,11 +51,12 @@ int             proc_count(void);
 void            proc_foreach(void (*fn)(const struct process *, void *), void *ctx);
 
 /* Capabilities may only be changed by kernel code; no user syscall exposes
- * this interface. */
+ * this interface. Revocation is used by Sentinel for quarantine/isolation. */
 int  proc_grant_caps(int pid, uint32_t caps);
+int  proc_revoke_caps(int pid, uint32_t caps);
 int  proc_has_cap(const struct process *proc, uint32_t cap);
 
-/* Load an executable and start it.  Returns the new pid, or a negative error. */
+/* Load an executable and start it. Returns the new pid, or a negative error. */
 int  proc_spawn(const char *path, int argc, const char *const *argv);
 int  proc_spawn_image(const char *name, const uint8_t *image, size_t size,
                       int argc, const char *const *argv);
