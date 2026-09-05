@@ -8,6 +8,7 @@ on:
       - sifar/2.0-dev
       - sifar/2.0-adaptive-staging
       - sifar/2.0-ui
+      - sifar/2.0-overhaul
   pull_request:
 
 jobs:
