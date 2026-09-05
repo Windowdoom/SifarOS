@@ -14,6 +14,7 @@
 #include <kernel/input.h>
 #include <kernel/kprintf.h>
 #include <kernel/mm.h>
+#include <kernel/net.h>
 #include <kernel/proc.h>
 #include <kernel/rtc.h>
 #include <kernel/sched.h>
@@ -180,6 +181,12 @@ static int32_t sys_path_op(uint32_t path_ptr, int operation) {
     strlcpy(proc->cwd, absolute, FS_PATH_MAX);
     return 0;
   }
+  case SYS_NET_INFO:
+    result = sys_net_info(arg1);
+    break;
+  case SYS_HTTP_GET:
+    result = sys_http_get(arg1, arg2, arg3);
+    break;
   default:
     return -1;
   }
@@ -335,6 +342,44 @@ static int32_t sys_log(uint32_t p, uint32_t len) {
   if (!proc_user_write_ok(out, len))
     return -1;
   return (int32_t)console_log_read(out, len);
+}
+
+static int32_t sys_net_info(uint32_t p) {
+  struct net_info *out = USER_STRUCT(p, struct net_info);
+
+  if (!proc_has_cap(proc_current(), PROC_CAP_NETWORK)) {
+    denied(SYS_NET_INFO);
+    return -1;
+  }
+  if (!out)
+    return -1;
+  net_get_info(out);
+  return 0;
+}
+
+static int32_t sys_http_get(uint32_t req_ptr, uint32_t out_ptr,
+                            uint32_t capacity) {
+  struct net_http_request request;
+  const struct net_http_request *user_request =
+      (const struct net_http_request *)(uintptr_t)req_ptr;
+  void *out = (void *)(uintptr_t)out_ptr;
+
+  if (!proc_has_cap(proc_current(), PROC_CAP_NETWORK)) {
+    denied(SYS_HTTP_GET);
+    return -1;
+  }
+  if (capacity == 0 || capacity > NET_HTTP_MAX ||
+      !proc_user_range_ok(user_request, sizeof(request)) ||
+      !proc_user_write_ok(out, capacity))
+    return -1;
+
+  memcpy(&request, user_request, sizeof(request));
+  request.host[NET_HOST_MAX - 1] = '\0';
+  request.path[NET_PATH_MAX - 1] = '\0';
+  if (!request.host[0] || !request.path[0] || request.port == 0)
+    return -1;
+
+  return net_http_get(request.host, request.port, request.path, out, capacity);
 }
 
 static void syscall_handler(struct registers *regs) {
