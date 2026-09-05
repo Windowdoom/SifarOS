@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply-and-verify:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
