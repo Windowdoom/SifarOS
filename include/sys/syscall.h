@@ -58,6 +58,10 @@
 #define SYS_SHUTDOWN  56
 #define SYS_FONT      57    /* (buf, len) -> copies the 8x16 console font */
 
+/* ---- network service ---- */
+#define SYS_NET_INFO  60    /* (struct net_info *) */
+#define SYS_HTTP_GET  61    /* (struct net_http_request *, out, capacity) */
+
 /* Where user programs are loaded and where their stack lives. */
 #define USER_BASE       0x40000000u
 #define USER_STACK_TOP  0x40800000u
