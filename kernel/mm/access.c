@@ -1,11 +1,13 @@
 /*
  * User virtual-memory access validation.
  *
- * Syscalls use this before dereferencing ring-3 pointers.  A range is valid
- * only when every covered page belongs to user space and is mapped with the
- * permissions required by the operation.
+ * Syscalls use this before dereferencing ring-3 pointers. A range is valid
+ * only when every covered PAE page belongs to user space and is mapped with
+ * the permissions required by the operation.
  */
 #include <kernel/mm.h>
+
+#define PAE_ADDR_MASK 0x000FFFFFFFFFF000ull
 
 int vmm_access_ok_in(struct addr_space *space, virt_addr_t start,
                      size_t size, int write)
@@ -13,7 +15,7 @@ int vmm_access_ok_in(struct addr_space *space, virt_addr_t start,
     virt_addr_t end;
     virt_addr_t page;
 
-    if (!space || !space->pd)
+    if (!space || !space->pdpt)
         return 0;
 
     /* POSIX-style zero-length buffers do not require a dereference. */
@@ -31,15 +33,22 @@ int vmm_access_ok_in(struct addr_space *space, virt_addr_t start,
     page = start & ~(PAGE_SIZE - 1u);
 
     for (;;) {
-        uint32_t pde = space->pd[page >> 22];
-        uint32_t *table;
-        uint32_t pte;
+        uint32_t pdpt_slot = page >> 30;
+        uint32_t pde_slot = (page >> 21) & 0x1FFu;
+        uint32_t pte_slot = (page >> PAGE_SHIFT) & 0x1FFu;
+        uint64_t pde;
+        uint64_t *table;
+        uint64_t pte;
 
+        if (pdpt_slot >= 4 || !space->pd[pdpt_slot])
+            return 0;
+
+        pde = space->pd[pdpt_slot][pde_slot];
         if (!(pde & PTE_PRESENT) || !(pde & PTE_USER))
             return 0;
 
-        table = (uint32_t *)(uintptr_t)(pde & ~0xFFFu);
-        pte = table[(page >> PAGE_SHIFT) & 0x3FFu];
+        table = (uint64_t *)(uintptr_t)(phys_addr_t)(pde & PAE_ADDR_MASK);
+        pte = table[pte_slot];
 
         if (!(pte & PTE_PRESENT) || !(pte & PTE_USER))
             return 0;
