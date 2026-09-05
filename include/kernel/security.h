@@ -40,4 +40,11 @@ void security_event_record(enum security_event_type type, uint32_t pid,
 uint32_t security_event_count(void);
 int security_event_get(uint32_t index, struct security_event *out);
 
+/* Active Sentinel policy for a violation committed by the current process.
+ * Strike 1-2: suspicious, 3-4: quarantine/revoke dangerous capabilities,
+ * 5: isolate/revoke all capabilities, 6+: terminate the offending process. */
+enum security_response security_syscall_violation(uint32_t code);
+uint32_t security_process_score(uint32_t pid);
+void security_process_forget(uint32_t pid);
+
 #endif
