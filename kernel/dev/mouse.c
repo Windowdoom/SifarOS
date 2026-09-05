@@ -6,6 +6,7 @@
  * screen and turns packets into events the window system can consume.
  */
 #include <kernel/input.h>
+#include <kernel/adaptive.h>
 #include <kernel/console.h>
 #include <kernel/kprintf.h>
 #include <kernel/io.h>
@@ -97,6 +98,12 @@ int input_poll(struct input_event *out)
         got = 1;
     }
     irq_restore(flags);
+
+    /* Interaction is observed when the window server consumes an event rather
+     * than from IRQ context. This keeps the adaptive path out of the driver ISR
+     * while still covering keyboard, mouse, button and wheel activity. */
+    if (got)
+        adaptive_note_interaction();
     return got;
 }
 
