@@ -1,0 +1,134 @@
+name: Apply SifarOS 2.0 UI
+
+on:
+  push:
+    branches:
+      - sifar/2.0-ui
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout UI branch
+        uses: actions/checkout@v4
+        with:
+          ref: sifar/2.0-ui
+          fetch-depth: 0
+
+      - name: Apply Sifar 2.0 design system
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_between(text, start, end, replacement):
+              a = text.find(start)
+              if a < 0:
+                  raise SystemExit(f'missing start marker: {start}')
+              b = text.find(end, a)
+              if b < 0:
+                  raise SystemExit(f'missing end marker: {end}')
+              return text[:a] + replacement + '\n\n' + text[b:]
+
+          # Window-manager geometry and chrome.
+          p = Path('include/kernel/wm.h')
+          text = p.read_text()
+          text = text.replace('#define WM_TITLE_HEIGHT 26', '#define WM_TITLE_HEIGHT 36')
+          p.write_text(text)
+
+          p = Path('kernel/gui/wm.c')
+          text = p.read_text()
+          old_theme = '''#define COLOR_DESKTOP_TOP    RGB(0x10, 0x18, 0x28)\n#define COLOR_DESKTOP_BOTTOM RGB(0x24, 0x33, 0x52)\n#define COLOR_TITLE_ACTIVE   RGB(0x2C, 0x5C, 0xA8)\n#define COLOR_TITLE_INACTIVE RGB(0x3A, 0x42, 0x50)\n#define COLOR_TITLE_TEXT     RGB(0xF0, 0xF4, 0xF8)\n#define COLOR_BORDER         RGB(0x14, 0x1A, 0x24)\n#define COLOR_SHADOW         RGBA(0, 0, 0, 90)'''
+          new_theme = '''#define COLOR_DESKTOP_TOP    RGB(0x08, 0x0D, 0x18)\n#define COLOR_DESKTOP_BOTTOM RGB(0x11, 0x1A, 0x2D)\n#define COLOR_TITLE_ACTIVE   RGB(0x21, 0x3A, 0x66)\n#define COLOR_TITLE_INACTIVE RGB(0x12, 0x1A, 0x28)\n#define COLOR_TITLE_TEXT     RGB(0xF4, 0xF7, 0xFB)\n#define COLOR_BORDER         RGB(0x25, 0x32, 0x48)\n#define COLOR_SHADOW         RGBA(0, 0, 0, 120)'''
+          if old_theme not in text:
+              raise SystemExit('window theme block changed unexpectedly')
+          text = text.replace(old_theme, new_theme, 1)
+
+          decorations = '''static void draw_decorations(struct gfx_surface *screen, struct window *w, int active)\n{\n    struct gfx_rect frame;\n    uint32_t title_color = active ? COLOR_TITLE_ACTIVE : COLOR_TITLE_INACTIVE;\n    uint32_t title_text = active ? COLOR_TITLE_TEXT : RGB(0x93, 0xA4, 0xBA);\n    int cy;\n    int min_cx;\n    int close_cx;\n\n    frame_rect(w, &frame);\n\n    /* Layered shadow gives depth without asking the compositor for blur. */\n    gfx_blend_rect(screen, frame.x + 5, frame.y + frame.h, frame.w, 6, COLOR_SHADOW);\n    gfx_blend_rect(screen, frame.x + frame.w, frame.y + 5, 6, frame.h, COLOR_SHADOW);\n\n    /* Rounded top chrome, squared into the client edge for a clean card shape. */\n    gfx_round_rect(screen, frame.x, frame.y, frame.w, WM_TITLE_HEIGHT + 8, 8, title_color);\n    gfx_fill_rect(screen, frame.x, frame.y + WM_TITLE_HEIGHT - 8, frame.w, 8, title_color);\n    if (active) {\n        gfx_fill_rect(screen, frame.x, frame.y, frame.w, 2, RGB(0x4F, 0x7D, 0xF3));\n    }\n    gfx_frame_rect(screen, frame.x, frame.y, frame.w, frame.h, COLOR_BORDER);\n\n    gfx_text_clipped(screen, frame.x + 14, frame.y + 10, w->title, title_text, 1,\n                     frame.w - 92);\n\n    cy = frame.y + WM_TITLE_HEIGHT / 2;\n    min_cx = frame.x + frame.w - 46;\n    close_cx = frame.x + frame.w - 20;\n\n    /* Compact traffic-light controls. */\n    gfx_circle(screen, min_cx, cy, 7,\n               active ? RGB(0xF2, 0xB8, 0x4B) : RGB(0x64, 0x6F, 0x82));\n    gfx_hline(screen, min_cx - 3, cy + 2, 7, RGB(0x24, 0x2B, 0x36));\n\n    gfx_circle(screen, close_cx, cy, 7,\n               active ? RGB(0xF0, 0x6C, 0x75) : RGB(0x64, 0x6F, 0x82));\n    gfx_line(screen, close_cx - 3, cy - 3, close_cx + 3, cy + 3, RGB(0x24, 0x2B, 0x36));\n    gfx_line(screen, close_cx + 3, cy - 3, close_cx - 3, cy + 3, RGB(0x24, 0x2B, 0x36));\n}'''
+          text = replace_between(text,
+                                 'static void draw_decorations(struct gfx_surface *screen, struct window *w, int active)',
+                                 '/* Repaint one screen rectangle from scratch and push it to the card. */',
+                                 decorations)
+          text = text.replace('if (x >= frame.x + frame.w - 24 && x < frame.x + frame.w - 8)',
+                              'if (x >= frame.x + frame.w - 28 && x < frame.x + frame.w - 10)', 1)
+          text = text.replace('if (x >= frame.x + frame.w - 44 && x < frame.x + frame.w - 28)',
+                              'if (x >= frame.x + frame.w - 54 && x < frame.x + frame.w - 36)', 1)
+          p.write_text(text)
+
+          # Desktop shell: spacing, wallpaper, taskbar, launcher, browser icon.
+          p = Path('user/apps/desktop.c')
+          text = p.read_text()
+          for old, new in [
+              ('#define TASKBAR_HEIGHT 40', '#define TASKBAR_HEIGHT 48'),
+              ('#define ICON_SIZE 48', '#define ICON_SIZE 44'),
+              ('#define ICON_CELL_W 96', '#define ICON_CELL_W 104'),
+              ('#define ICON_CELL_H 92', '#define ICON_CELL_H 88'),
+              ('#define MENU_WIDTH 220', '#define MENU_WIDTH 280'),
+          ]:
+              if old not in text:
+                  raise SystemExit(f'missing desktop constant: {old}')
+              text = text.replace(old, new, 1)
+
+          old_themes = '''static const uint32_t theme_colors[][2] = {\n    {0xFF141E34, 0xFF2A3E62}, {0xFF1C2026, 0xFF39424E},\n    {0xFF12241A, 0xFF265038}, {0xFF241428, 0xFF4A2A54},\n    {0xFF2A1810, 0xFF5A2E18},\n};'''
+          new_themes = '''static const uint32_t theme_colors[][2] = {\n    {0xFF070C16, 0xFF17233D}, {0xFF0B0F16, 0xFF252E3C},\n    {0xFF07150F, 0xFF123827}, {0xFF130A1A, 0xFF39224D},\n    {0xFF190D08, 0xFF4A2418},\n};'''
+          if old_themes not in text:
+              raise SystemExit('desktop theme palette changed unexpectedly')
+          text = text.replace(old_themes, new_themes, 1)
+
+          text = text.replace('  ICON_GAME,\n  ICON_TEXT', '  ICON_GAME,\n  ICON_BROWSER,\n  ICON_TEXT', 1)
+          text = text.replace('{"browser", "Sifar Browser", ICON_TEXT}',
+                              '{"browser", "Sifar Web", ICON_BROWSER}', 1)
+          browser_icon = '''  case ICON_BROWSER:\n    ui_circle(w, x + size / 2, y + size / 2, size / 2 - 1, UI_ACCENT);\n    ui_circle(w, x + size / 2, y + size / 2, size / 2 - 5, UI_RGB(0x0E, 0x16, 0x26));\n    ui_line(w, x + 5, y + size / 2, x + size - 6, y + size / 2, UI_ACCENT_LIGHT);\n    ui_line(w, x + size / 2, y + 5, x + size / 2, y + size - 6, UI_ACCENT_LIGHT);\n    ui_circle(w, x + size / 2, y + size / 2, size / 4, UI_RGB(0x4F, 0x7D, 0xF3));\n    ui_circle(w, x + size / 2, y + size / 2, size / 4 - 2, UI_RGB(0x0E, 0x16, 0x26));\n    break;\n'''
+          marker = '  case ICON_TEXT:\n'
+          if marker not in text:
+              raise SystemExit('browser icon insertion point missing')
+          text = text.replace(marker, browser_icon + marker, 1)
+
+          wallpaper = '''static void draw_wallpaper(ui_window *w) {\n  ui_gradient(w, 0, 0, w->width, w->height, theme_colors[theme][0],\n              theme_colors[theme][1]);\n\n  /* Broad light fields create depth without expensive blur. */\n  ui_blend(w, w->width / 2, 0, w->width / 2, w->height / 2,\n           UI_RGBA(0x4F, 0x7D, 0xF3, 10));\n  ui_blend(w, w->width * 2 / 3, w->height / 3, w->width / 3, w->height / 2,\n           UI_RGBA(0x78, 0xA1, 0xFF, 7));\n\n  if (show_grid) {\n    for (int x = 0; x < w->width; x += 64)\n      ui_blend(w, x, 0, 1, w->height, UI_RGBA(0xFF, 0xFF, 0xFF, 4));\n    for (int y = 0; y < w->height; y += 64)\n      ui_blend(w, 0, y, w->width, 1, UI_RGBA(0xFF, 0xFF, 0xFF, 4));\n  }\n\n  ui_text_scaled(w, w->width - 232, w->height - 122, "SIFAR",\n                 UI_RGBA(0xFF, 0xFF, 0xFF, 46), 3);\n  ui_text(w, w->width - 232, w->height - 72, "OS 2.0  /  adaptive by design",\n          UI_RGBA(0xFF, 0xFF, 0xFF, 48));\n\n  for (int i = 0; i < app_count; i++) {\n    int column = i / 6;\n    int row = i % 6;\n    int x = 24 + column * ICON_CELL_W;\n    int y = 24 + row * ICON_CELL_H;\n    int hover = ui_hit(w, x - 8, y - 6, ICON_CELL_W - 16, ICON_CELL_H - 10);\n\n    if (i == selected_icon || hover)\n      ui_round_fill(w, x - 8, y - 6, ICON_CELL_W - 16, ICON_CELL_H - 10, 10,\n                    i == selected_icon ? UI_RGBA(0x4F, 0x7D, 0xF3, 72)\n                                       : UI_RGBA(0xFF, 0xFF, 0xFF, 20));\n\n    draw_icon(w, x + (ICON_CELL_W - 32 - ICON_SIZE) / 2, y, ICON_SIZE,\n              apps[i].icon);\n    ui_text_center(w, x - 8, y + ICON_SIZE + 8, ICON_CELL_W - 16, apps[i].label,\n                   i == selected_icon ? UI_WHITE : UI_TEXT);\n  }\n}'''
+          text = replace_between(text, 'static void draw_wallpaper(ui_window *w) {',
+                                 '/* ----------------------------------------------------------------- taskbar */', wallpaper)
+
+          taskbar = '''static void draw_taskbar(ui_window *w, struct gui_window_desc *windows,\n                         int count) {\n  struct sys_time now;\n  char clock[24];\n  struct sys_info info;\n  char memory[40];\n  int x = 10;\n\n  ui_gradient(w, 0, 0, w->width, w->height, UI_RGB(0x0D, 0x14, 0x22),\n              UI_RGB(0x08, 0x0D, 0x18));\n  ui_fill(w, 0, 0, w->width, 1, UI_BORDER);\n\n  {\n    int width = 98;\n    int hover = ui_hit(w, x, 7, width, TASKBAR_HEIGHT - 14);\n    uint32_t face = launcher_open ? UI_ACCENT : (hover ? UI_PANEL_LIGHT : UI_SURFACE_ALT);\n\n    ui_round_fill(w, x, 7, width, TASKBAR_HEIGHT - 14, 10, face);\n    ui_circle(w, x + 18, 24, 8, launcher_open ? UI_WHITE : UI_ACCENT);\n    ui_text(w, x + 14, 16, "S", launcher_open ? UI_ACCENT : UI_WHITE);\n    ui_text(w, x + 34, 16, "Sifar", UI_WHITE);\n\n    if (hover && w->mouse_pressed) {\n      launcher_open = !launcher_open;\n      w->dirty = 1;\n    }\n    x += width + 10;\n  }\n\n  for (int i = 0; i < count; i++) {\n    int width = 138;\n    int hover = ui_hit(w, x, 7, width, TASKBAR_HEIGHT - 14);\n    uint32_t face = windows[i].focused\n                        ? UI_ACCENT\n                        : (windows[i].state == GUI_STATE_MINIMIZED ? UI_BG : UI_SURFACE_ALT);\n\n    if (x + width > w->width - 230)\n      break;\n\n    ui_round_fill(w, x, 7, width, TASKBAR_HEIGHT - 14, 10,\n                  hover && !windows[i].focused ? UI_PANEL_LIGHT : face);\n    ui_clip_set(w, x + 10, 7, width - 20, TASKBAR_HEIGHT - 14);\n    ui_text(w, x + 12, 16, windows[i].title, windows[i].focused ? UI_WHITE : UI_TEXT);\n    ui_clip_reset(w);\n\n    if (hover && w->mouse_pressed) {\n      if (windows[i].focused)\n        syscall3(SYS_GUI_MINIMIZE, (int)windows[i].id, 0, 0);\n      else\n        syscall3(SYS_GUI_ACTIVATE, (int)windows[i].id, 0, 0);\n      w->dirty = 1;\n    }\n    x += width + 7;\n  }\n\n  if (system_info(&info) == 0) {\n    snprintf(memory, sizeof(memory), "%d MiB free",\n             (int)((info.total_memory_kb - info.used_memory_kb) / 1024));\n    ui_round_fill(w, w->width - 224, 8, 116, TASKBAR_HEIGHT - 16, 9, UI_SURFACE_ALT);\n    ui_text_center(w, w->width - 224, 16, 116, memory, UI_TEXT_DIM);\n  }\n  if (system_time(&now) == 0) {\n    snprintf(clock, sizeof(clock), "%02d:%02d", (int)now.hour, (int)now.minute);\n    ui_text(w, w->width - 88, 16, clock, UI_WHITE);\n  }\n}'''
+          text = replace_between(text,
+                                 'static void draw_taskbar(ui_window *w, struct gui_window_desc *windows,',
+                                 '/* ---------------------------------------------------------------- launcher */', taskbar)
+
+          launcher = '''static void draw_launcher(ui_window *w, int *launch_index) {\n  ui_round_fill(w, 0, 0, w->width, w->height, 12, UI_PANEL);\n  ui_frame(w, 0, 0, w->width, w->height, UI_BORDER);\n\n  ui_circle(w, 24, 24, 10, UI_ACCENT);\n  ui_text(w, 20, 16, "S", UI_WHITE);\n  ui_text(w, 44, 10, "Sifar", UI_WHITE);\n  ui_text(w, 44, 27, "Applications", UI_TEXT_DIM);\n  ui_fill(w, 14, 48, w->width - 28, 1, UI_BORDER);\n\n  for (int i = 0; i < app_count; i++) {\n    int y = 56 + i * 34;\n    int hover = ui_hit(w, 10, y, w->width - 20, 30);\n\n    if (y + 30 > w->height)\n      break;\n    if (hover)\n      ui_round_fill(w, 10, y, w->width - 20, 30, 8, UI_SURFACE_ALT);\n    draw_icon(w, 16, y + 3, 24, apps[i].icon);\n    ui_text(w, 50, y + 7, apps[i].label, UI_TEXT);\n\n    if (hover && w->mouse_pressed)\n      *launch_index = i;\n  }\n}'''
+          text = replace_between(text, 'static void draw_launcher(ui_window *w, int *launch_index) {',
+                                 '/* -------------------------------------------------------------------- main */', launcher)
+
+          # Launcher header grew by four pixels; keep menu height aligned with rows.
+          text = text.replace('int height = 52 + app_count * 34;',
+                              'int height = 62 + app_count * 34;', 1)
+          p.write_text(text)
+
+          # Widget chrome: larger radii and softer containers without changing layout contracts.
+          p = Path('user/lib/ui.c')
+          text = p.read_text()
+          text = text.replace('ui_round_fill(window, x, y, w, h, 4, face);\n    ui_frame(window, x, y, w, h, UI_BORDER);',
+                              'ui_round_fill(window, x, y, w, h, 8, face);\n    ui_frame(window, x, y, w, h, UI_BORDER);', 1)
+          text = text.replace('ui_fill(window, x, y, w, height, UI_SURFACE);\n    ui_frame(window, x, y, w, height, window->focus == id ? UI_ACCENT : UI_BORDER);',
+                              'ui_round_fill(window, x, y, w, height, 7, UI_SURFACE);\n    ui_frame(window, x, y, w, height, window->focus == id ? UI_ACCENT : UI_BORDER);', 1)
+          text = text.replace('ui_round_fill(window, x, y, w, h, 6, UI_PANEL);',
+                              'ui_round_fill(window, x, y, w, h, 10, UI_PANEL);', 1)
+          p.write_text(text)
+
+          # Release identity on disk.
+          p = Path('Makefile')
+          text = p.read_text().replace('SifarOS 0.2.0 (i386)', 'SifarOS 2.0.0 (i386)')
+          p.write_text(text)
+          PY
+
+          clang-format -i kernel/gui/wm.c user/apps/desktop.c user/lib/ui.c
+          git diff --check
+
+      - name: Commit UI system
+        run: |
+          git config user.name "SifarOS CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add include/kernel/wm.h kernel/gui/wm.c user/apps/desktop.c user/lib/ui.c Makefile
+          git commit -m "ui: implement SifarOS 2.0 visual system"
+          git push origin HEAD:sifar/2.0-ui
