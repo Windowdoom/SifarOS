@@ -6,7 +6,7 @@
 #   tools/run.sh --debug      wait for gdb on localhost:1234
 #   tools/run.sh --curses     text mode in the terminal
 #
-# Environment: MEMORY (MiB), IMAGE, QEMU.
+# Environment: MEMORY (MiB), IMAGE, QEMU, CPU.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -14,6 +14,7 @@ cd "$(dirname "$0")/.."
 IMAGE=${IMAGE:-build/sifaros.img}
 MEMORY=${MEMORY:-512}
 QEMU=${QEMU:-qemu-system-i386}
+CPU=${CPU:-max}
 
 if [ ! -f "$IMAGE" ]; then
     echo "$IMAGE not found, run make first" >&2
@@ -26,11 +27,13 @@ fi
 ARGS=(-drive "format=raw,file=$IMAGE" -m "$MEMORY" -no-reboot -boot c
       -netdev user,id=sifarnet -device rtl8139,netdev=sifarnet)
 
-# Hardware virtualisation makes the software compositor feel immediate rather
-# than merely usable. Fall back quietly when it is not available. Apple
-# Silicon runs the x86 guest through TCG, which still exposes PAE/NX.
+# SifarOS 2.0 uses PAE/NX for hardware-enforced W^X. TCG's "max" model
+# advertises those architectural features consistently on Linux and Apple
+# Silicon. KVM can expose the real host CPU instead.
 if [ -w /dev/kvm ]; then
     ARGS+=(-accel kvm -cpu host)
+else
+    ARGS+=(-cpu "$CPU")
 fi
 
 MODE=${1:-auto}
