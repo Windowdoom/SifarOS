@@ -15,6 +15,7 @@
 #include <kernel/proc.h>
 #include <kernel/sched.h>
 #include <kernel/string.h>
+#include <kernel/io.h>
 #include <arch/x86.h>
 
 #define SUBJECT_COUNT MAX_PROCESSES
