@@ -1,7 +1,7 @@
 /*
  * Processes.
  *
- * A process owns an address space, a heap and one or more threads.  The
+ * A process owns an address space, a heap and one or more threads. The
  * kernel itself is process 0 and keeps the kernel address space; everything
  * loaded from disk gets a private one, so a bug in an application can only
  * damage that application.
@@ -20,6 +20,7 @@
 
 #define USER_STACK_PAGES 16                     /* 64 KiB of user stack */
 #define ARG_AREA_MAX     1024
+#define MAX_USER_IMAGE_SIZE (4u * MB)
 
 extern void enter_usermode(uint32_t entry, uint32_t user_stack) __attribute__((noreturn));
 
@@ -60,6 +61,8 @@ int proc_count(void)
 
 void proc_foreach(void (*fn)(const struct process *, void *), void *ctx)
 {
+    if (!fn)
+        return;
     for (int i = 0; i < MAX_PROCESSES; i++) {
         if (table[i].state != PROC_FREE)
             fn(&table[i], ctx);
@@ -86,7 +89,7 @@ static struct process *allocate(void)
             return &table[i];
     }
 
-    /* Recycle the oldest finished process nobody bothered to wait for. */
+    /* Recycle a finished process nobody bothered to wait for. */
     for (int i = 1; i < MAX_PROCESSES; i++) {
         if (table[i].state == PROC_ZOMBIE && table[i].cleaned) {
             table[i].state = PROC_FREE;
@@ -100,35 +103,39 @@ static struct process *allocate(void)
 
 int proc_user_range_ok(const void *ptr, size_t len)
 {
-    uintptr_t addr = (uintptr_t)ptr;
     struct process *proc = proc_current();
 
-    if (len == 0)
-        return 1;
-    if (proc == kernel_process)
+    if (!proc || proc == kernel_process)
         return 0;                   /* kernel threads have no user memory */
-    if (addr < USER_MIN || addr + len < addr || addr + len > USER_MAX)
-        return 0;
+    return vmm_access_ok_in(&proc->space, (virt_addr_t)(uintptr_t)ptr, len, 0);
+}
 
-    for (uintptr_t page = ALIGN_DOWN(addr, PAGE_SIZE); page < addr + len;
-         page += PAGE_SIZE) {
-        if (!vmm_translate_in(&proc->space, page))
-            return 0;
-    }
-    return 1;
+int proc_user_write_ok(void *ptr, size_t len)
+{
+    struct process *proc = proc_current();
+
+    if (!proc || proc == kernel_process)
+        return 0;
+    return vmm_access_ok_in(&proc->space, (virt_addr_t)(uintptr_t)ptr, len, 1);
 }
 
 int proc_copy_user_string(const char *user, char *out, size_t size)
 {
+    if (!user || !out || size == 0)
+        return -1;
+
     for (size_t i = 0; i < size - 1; i++) {
-        if (!proc_user_range_ok(user + i, 1))
+        if (!proc_user_range_ok(user + i, 1)) {
+            out[0] = '\0';
             return -1;
+        }
         out[i] = user[i];
         if (!out[i])
             return (int)i;
     }
+
     out[size - 1] = '\0';
-    return -1;
+    return -1;                       /* unterminated within the supplied bound */
 }
 
 virt_addr_t proc_sbrk(int32_t increment)
@@ -136,28 +143,50 @@ virt_addr_t proc_sbrk(int32_t increment)
     struct process *proc = proc_current();
     virt_addr_t previous;
 
-    if (proc == kernel_process)
+    if (!proc || proc == kernel_process)
         return 0;
 
     previous = proc->brk;
 
     if (increment > 0) {
-        virt_addr_t target = proc->brk + (uint32_t)increment;
+        uint64_t target64 = (uint64_t)proc->brk + (uint32_t)increment;
+        virt_addr_t stack_floor = proc->stack_top -
+                                  (uint32_t)USER_STACK_PAGES * PAGE_SIZE;
+        virt_addr_t target;
 
-        if (target >= proc->stack_top - (uint32_t)USER_STACK_PAGES * PAGE_SIZE)
-            return 0;               /* would run into the stack */
+        if (target64 >= stack_floor || target64 > USER_MAX)
+            return 0;               /* overflow or collision with the stack */
+        target = (virt_addr_t)target64;
+
         if (vmm_alloc_range(&proc->space, proc->brk, (size_t)increment,
                             PTE_PRESENT | PTE_WRITE | PTE_USER) < 0)
             return 0;
+
         proc->brk = target;
         proc->user_pages += (uint32_t)(ALIGN_UP(target, PAGE_SIZE) -
                                        ALIGN_UP(previous, PAGE_SIZE)) / PAGE_SIZE;
     } else if (increment < 0) {
-        uint32_t shrink = (uint32_t)(-increment);
+        uint32_t available = proc->brk - proc->brk_start;
+        uint32_t shrink = (uint32_t)(-(int64_t)increment);
+        virt_addr_t old_top;
+        virt_addr_t new_top;
 
-        if (shrink > proc->brk - proc->brk_start)
-            shrink = proc->brk - proc->brk_start;
+        if (shrink > available)
+            shrink = available;
+
         proc->brk -= shrink;
+        old_top = ALIGN_UP(previous, PAGE_SIZE);
+        new_top = ALIGN_UP(proc->brk, PAGE_SIZE);
+
+        if (old_top > new_top) {
+            uint32_t pages = (old_top - new_top) / PAGE_SIZE;
+
+            vmm_free_range(&proc->space, new_top, old_top - new_top);
+            if (pages <= proc->user_pages)
+                proc->user_pages -= pages;
+            else
+                proc->user_pages = 0;
+        }
     }
 
     return previous;
@@ -180,28 +209,49 @@ static struct launch pending[MAX_PROCESSES];
 static int build_stack(struct process *proc, int argc, const char *const *argv,
                        virt_addr_t *out_esp)
 {
-    uint8_t  scratch[ARG_AREA_MAX];
+    uint8_t scratch[ARG_AREA_MAX];
     uint32_t pointers[16];
-    size_t   strings_len = 0;
-    size_t   total;
+    size_t strings_len = 0;
+    size_t header_len;
+    size_t total;
     virt_addr_t base;
 
+    if (!proc || !out_esp || argc < 0)
+        return -1;
     if (argc > 15)
         argc = 15;
-
-    for (int i = 0; i < argc; i++)
-        strings_len += strlen(argv[i]) + 1;
-
-    total = 4 + (size_t)(argc + 1) * 4 + strings_len;
-    total = ALIGN_UP(total, 16);
-    if (total > sizeof(scratch))
+    if (argc > 0 && !argv)
         return -1;
 
-    base = proc->stack_top - total;
+    header_len = 4 + (size_t)(argc + 1) * sizeof(uint32_t);
+    if (header_len > sizeof(scratch))
+        return -1;
+
+    for (int i = 0; i < argc; i++) {
+        size_t len;
+
+        if (!argv[i])
+            return -1;
+        len = strlen(argv[i]) + 1;
+        if (len > sizeof(scratch) - header_len - strings_len)
+            return -1;
+        strings_len += len;
+    }
+
+    total = ALIGN_UP(header_len + strings_len, 16);
+    if (total > sizeof(scratch) || total > proc->stack_top - USER_MIN)
+        return -1;
+
+    base = proc->stack_top - (virt_addr_t)total;
+    if (base < proc->stack_top - USER_STACK_PAGES * PAGE_SIZE)
+        return -1;
+
+    /* Zero alignment/padding too, so no kernel stack bytes leak to ring 3. */
+    memset(scratch, 0, total);
 
     /* Strings go above the pointer array. */
     {
-        size_t string_offset = 4 + (size_t)(argc + 1) * 4;
+        size_t string_offset = header_len;
 
         for (int i = 0; i < argc; i++) {
             size_t len = strlen(argv[i]) + 1;
@@ -212,15 +262,14 @@ static int build_stack(struct process *proc, int argc, const char *const *argv,
         }
     }
 
-    memset(scratch, 0, 4 + (size_t)(argc + 1) * 4);
     *(uint32_t *)scratch = (uint32_t)argc;
     for (int i = 0; i < argc; i++)
-        *(uint32_t *)(scratch + 4 + i * 4) = pointers[i];
-    *(uint32_t *)(scratch + 4 + argc * 4) = 0;
+        *(uint32_t *)(scratch + 4 + i * sizeof(uint32_t)) = pointers[i];
+    *(uint32_t *)(scratch + 4 + argc * sizeof(uint32_t)) = 0;
 
     /* Copy the whole block into the new address space, page by page. */
     for (size_t offset = 0; offset < total; ) {
-        virt_addr_t dst = base + offset;
+        virt_addr_t dst = base + (virt_addr_t)offset;
         phys_addr_t phys = vmm_translate_in(&proc->space, dst);
         size_t page_offset = dst & (PAGE_SIZE - 1);
         size_t chunk = PAGE_SIZE - page_offset;
@@ -242,8 +291,12 @@ static void process_entry(void *arg)
 {
     struct launch *launch = (struct launch *)arg;
     struct thread *self = thread_current();
-    struct process *proc = launch->proc;
+    struct process *proc;
 
+    if (!launch || !self || !launch->proc)
+        thread_exit(-1);
+
+    proc = launch->proc;
     self->proc = proc;
     self->space = &proc->space;
     self->user = 1;
@@ -263,6 +316,10 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
     int slot;
     int tid;
 
+    if (!name || !*name || !image || size == 0 || size > MAX_USER_IMAGE_SIZE)
+        return -1;
+    if (argc < 0 || (argc > 0 && !argv))
+        return -1;
     if (!elf_is_valid(image, size))
         return -1;
 
@@ -293,7 +350,14 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
     proc->brk_start = brk;
     proc->brk = brk;
 
-    if (vmm_alloc_range(&proc->space, proc->stack_top - USER_STACK_PAGES * PAGE_SIZE,
+    if (brk >= proc->stack_top - USER_STACK_PAGES * PAGE_SIZE) {
+        vmm_space_destroy(&proc->space);
+        proc->state = PROC_FREE;
+        return -5;
+    }
+
+    if (vmm_alloc_range(&proc->space,
+                        proc->stack_top - USER_STACK_PAGES * PAGE_SIZE,
                         USER_STACK_PAGES * PAGE_SIZE,
                         PTE_PRESENT | PTE_WRITE | PTE_USER) < 0) {
         vmm_space_destroy(&proc->space);
@@ -308,7 +372,7 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
         return -6;
     }
 
-    pending[slot].proc  = proc;
+    pending[slot].proc = proc;
     pending[slot].entry = entry;
     pending[slot].stack = esp;
 
@@ -325,13 +389,18 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
 
 int proc_spawn(const char *path, int argc, const char *const *argv)
 {
-    struct fs_node *node = vfs_lookup(proc_current()->cwd, path);
+    struct fs_node *node;
     uint8_t *image;
-    ssize_t  read;
-    int      result;
+    ssize_t read;
+    int result;
     const char *name;
 
-    if (!node || node->type != FS_FILE)
+    if (!path || !*path)
+        return -1;
+
+    node = vfs_lookup(proc_current()->cwd, path);
+    if (!node || node->type != FS_FILE || node->size == 0 ||
+        node->size > MAX_USER_IMAGE_SIZE)
         return -1;
 
     image = (uint8_t *)kmalloc(node->size);
@@ -339,7 +408,7 @@ int proc_spawn(const char *path, int argc, const char *const *argv)
         return -2;
 
     read = vfs_read(node, 0, image, node->size);
-    if (read <= 0) {
+    if (read <= 0 || (size_t)read != node->size) {
         kfree(image);
         return -3;
     }
@@ -358,7 +427,7 @@ void proc_exit(int code)
 {
     struct process *proc = proc_current();
 
-    if (proc != kernel_process) {
+    if (proc && proc != kernel_process) {
         proc->exit_code = code;
         proc->state = PROC_ZOMBIE;
     }
@@ -370,7 +439,7 @@ void proc_exit(int code)
  *
  * This cannot happen inside the dying thread: it is still standing on that
  * address space, and CR3 still points at the page directory we would be
- * freeing.  The idle task runs this once the thread has switched away for the
+ * freeing. The idle task runs this once the thread has switched away for the
  * last time.
  */
 void proc_reap(void)
@@ -397,7 +466,7 @@ int proc_wait(int pid, int *exit_code)
 {
     struct process *proc = proc_by_pid(pid);
 
-    if (!proc)
+    if (!proc || proc == kernel_process)
         return -1;
 
     while (proc->state == PROC_RUNNING)
@@ -414,12 +483,12 @@ int proc_wait(int pid, int *exit_code)
     return 0;
 }
 
-/* Has this process finished?  Returns 1 and the status, or 0 if still alive. */
+/* Has this process finished? Returns 1 and the status, or 0 if still alive. */
 int proc_try_wait(int pid, int *exit_code)
 {
     struct process *proc = proc_by_pid(pid);
 
-    if (!proc)
+    if (!proc || proc == kernel_process)
         return -1;
     if (proc->state == PROC_RUNNING || !proc->cleaned)
         return 0;
@@ -434,7 +503,7 @@ int proc_kill(int pid)
 {
     struct process *proc = proc_by_pid(pid);
 
-    if (!proc || proc == kernel_process)
+    if (!proc || proc == kernel_process || proc->state != PROC_RUNNING)
         return -1;
 
     thread_kill(proc->main_tid);
