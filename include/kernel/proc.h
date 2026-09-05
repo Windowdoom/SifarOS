@@ -8,6 +8,14 @@
 #define PROC_NAME_MAX 32
 #define MAX_PROCESSES 32
 
+/* Kernel-granted privileges. They are deliberately not inherited by child
+ * processes and there is no userspace syscall for granting them. */
+#define PROC_CAP_WINDOW_CONTROL  0x00000001u
+#define PROC_CAP_SYSTEM_CONTROL  0x00000002u
+#define PROC_CAP_PROCESS_CONTROL 0x00000004u
+#define PROC_CAP_PROCESS_INSPECT 0x00000008u
+#define PROC_CAP_NETWORK         0x00000010u
+
 enum proc_state {
     PROC_FREE = 0,
     PROC_RUNNING,
@@ -28,6 +36,7 @@ struct process {
     char              cwd[FS_PATH_MAX];
     uint64_t          started_ms;
     uint32_t          user_pages;
+    uint32_t          capabilities;
     uint8_t           cleaned;      /* address space already released */
 };
 
@@ -37,6 +46,11 @@ struct process *proc_kernel(void);
 struct process *proc_by_pid(int pid);
 int             proc_count(void);
 void            proc_foreach(void (*fn)(const struct process *, void *), void *ctx);
+
+/* Capabilities may only be changed by kernel code; no user syscall exposes
+ * this interface. */
+int  proc_grant_caps(int pid, uint32_t caps);
+int  proc_has_cap(const struct process *proc, uint32_t cap);
 
 /* Load an executable and start it.  Returns the new pid, or a negative error. */
 int  proc_spawn(const char *path, int argc, const char *const *argv);
