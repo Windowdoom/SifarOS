@@ -52,4 +52,9 @@ void            sched_foreach(void (*fn)(const struct thread *, void *), void *c
 void            sched_reap(void);           /* free finished threads */
 const char     *thread_state_name(enum thread_state state);
 
+/* Sifar Adaptive Core may tune the preemption slice, but only within this
+ * bounded API. One tick is 10 ms at the default 100 Hz PIT rate. */
+void            sched_set_quantum_ticks(uint32_t ticks);
+uint32_t        sched_quantum_ticks(void);
+
 #endif
