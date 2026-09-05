@@ -6,9 +6,9 @@
  * capability revocation, isolation and recovery build on this later.
  */
 #include <kernel/security.h>
-#include <kernel/sched.h>
 #include <kernel/string.h>
 #include <kernel/io.h>
+#include <arch/x86.h>
 
 static struct security_event events[SECURITY_EVENT_LOG_CAPACITY];
 static uint32_t event_head;
