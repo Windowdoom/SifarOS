@@ -38,7 +38,7 @@ struct process *proc_by_pid(int pid);
 int             proc_count(void);
 void            proc_foreach(void (*fn)(const struct process *, void *), void *ctx);
 
-/* Load an executable and start it.  Returns the new pid, or a negative error. */
+/* Load an executable and start it. Returns the new pid, or a negative error. */
 int  proc_spawn(const char *path, int argc, const char *const *argv);
 int  proc_spawn_image(const char *name, const uint8_t *image, size_t size,
                       int argc, const char *const *argv);
@@ -52,8 +52,9 @@ void proc_reap(void);           /* release finished processes, runs on idle */
 /* Grow or shrink the current process heap; returns the previous break. */
 virt_addr_t proc_sbrk(int32_t increment);
 
-/* Pointer checking for syscalls: is this range inside the caller's memory? */
+/* Pointer checking for syscall boundaries. */
 int  proc_user_range_ok(const void *ptr, size_t len);
+int  proc_user_write_ok(void *ptr, size_t len);
 int  proc_copy_user_string(const char *user, char *out, size_t size);
 
 void syscall_init(void);
