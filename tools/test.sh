@@ -2,8 +2,8 @@
 # Boot SifarOS in QEMU and drive it over the serial console.
 #
 # This exercises the parts a screenshot cannot: the boot sequence, the disk
-# filesystem, process creation, fault isolation, the in-kernel test suite and
-# whether writes actually survive a reboot. tools/test-gui.sh covers desktop.
+# filesystem, process creation, fault isolation, network-device bring-up, the
+# in-kernel test suite and whether writes actually survive a reboot.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -42,6 +42,8 @@ run_session() {
     } | run_limited "$TIMEOUT" "$QEMU" \
             -drive "format=raw,file=$IMAGE" \
             -m "$MEMORY" \
+            -netdev user,id=sifarnet \
+            -device rtl8139,netdev=sifarnet \
             -display none \
             -serial stdio \
             -no-reboot \
@@ -113,9 +115,10 @@ expect "a graphics mode is set"         "setting graphics mode"
 expect "protected mode is entered"      "SifarOS 0.2.0|a small operating system"
 expect "the CPU and tables come up"     "GDT, IDT, PIC and (SSE|x87)"
 expect "memory is detected"             "MiB usable"
-expect "paging comes up"                "paging : enabled"
+expect "PAE/NX paging comes up"         "paging : PAE/NX enabled"
 expect "the heap comes up"              "heap   : ready"
 expect "the framebuffer comes up"       "video  : [0-9]+x[0-9]+ at 32 bpp"
+expect "RTL8139 is initialized"         "net    : RTL8139 [0-9a-f]{2}(:[0-9a-f]{2}){5} ready"
 expect "the disk is found"              "disk   : .*MiB"
 expect "the filesystem mounts"          "SifarFS .* mounted at /"
 expect "the syscall gate installs"      "int 0x80 gate installed"
