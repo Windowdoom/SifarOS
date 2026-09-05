@@ -40,6 +40,7 @@ static uint32_t candidate_count;
 static uint64_t last_interaction_ms;
 static uint64_t last_threat_decay_ms;
 static uint32_t threat_score;
+static int initialized;
 static int started;
 
 struct thread_sample {
@@ -131,27 +132,30 @@ static void apply_mode(enum adaptive_mode mode)
 static enum adaptive_mode choose_mode(const struct thread_sample *threads,
                                       uint32_t processes,
                                       uint32_t free_percent,
+                                      uint32_t threat,
+                                      uint64_t interaction_ms,
                                       uint64_t now)
 {
-    if (threat_score >= 6u)
+    if (threat >= 6u)
         return ADAPTIVE_DEFENSIVE;
 
     if (free_percent <= 10u ||
         (free_percent <= 20u && threads->runnable >= 6u))
         return ADAPTIVE_PRESSURE;
 
-    if ((last_interaction_ms && now - last_interaction_ms <= INTERACTIVE_WINDOW_MS) ||
+    if ((interaction_ms && now - interaction_ms <= INTERACTIVE_WINDOW_MS) ||
         threads->runnable >= 5u || threads->user >= 3u)
         return ADAPTIVE_RESPONSIVE;
 
     if (threads->runnable <= 2u && processes <= 2u &&
-        (!last_interaction_ms || now - last_interaction_ms >= QUIET_AFTER_MS))
+        (!interaction_ms || now - interaction_ms >= QUIET_AFTER_MS))
         return ADAPTIVE_QUIET;
 
     return ADAPTIVE_BALANCED;
 }
 
-static void decay_threat(uint64_t now)
+/* Caller holds interrupts disabled so 64-bit timestamps cannot tear on i386. */
+static void decay_threat_locked(uint64_t now)
 {
     if (!last_threat_decay_ms)
         last_threat_decay_ms = now;
@@ -171,21 +175,25 @@ static void sample_once(void)
         (uint32_t)(((uint64_t)free_frames * 100u) / total) : 0;
     uint32_t processes = (uint32_t)proc_count();
     uint64_t now = timer_ms();
+    uint64_t interaction_ms;
+    uint32_t threat;
     enum adaptive_mode desired;
     uint32_t flags;
 
-    decay_threat(now);
-
     flags = irq_save();
+    decay_threat_locked(now);
+    interaction_ms = last_interaction_ms;
+    threat = threat_score;
     sched_foreach(count_thread, &threads);
     irq_restore(flags);
 
     state.runnable_threads = threads.runnable;
     state.process_count = processes;
     state.free_memory_percent = free_percent;
-    state.threat_score = threat_score;
+    state.threat_score = threat;
 
-    desired = choose_mode(&threads, processes, free_percent, now);
+    desired = choose_mode(&threads, processes, free_percent, threat,
+                          interaction_ms, now);
 
     /* Defensive transitions happen immediately. Everything else must remain
      * the best policy for several consecutive samples to prevent oscillation. */
@@ -235,12 +243,15 @@ void adaptive_init(void)
     last_threat_decay_ms = 0;
     threat_score = 0;
     started = 0;
+    initialized = 1;
 }
 
 int adaptive_start(void)
 {
     int tid;
 
+    if (!initialized)
+        return -1;
     if (started)
         return 0;
     tid = thread_create("adaptive", adaptive_thread, NULL);
@@ -266,6 +277,8 @@ void adaptive_note_security(uint32_t response_level)
     uint32_t add = 0;
     uint32_t flags;
 
+    if (!initialized)
+        return;
     if (response_level >= SECURITY_RESPONSE_KILL)
         add = 8;
     else if (response_level >= SECURITY_RESPONSE_ISOLATE)
@@ -289,7 +302,13 @@ void adaptive_note_security(uint32_t response_level)
 
 void adaptive_note_interaction(void)
 {
+    uint32_t flags;
+
+    if (!initialized)
+        return;
+    flags = irq_save();
     last_interaction_ms = timer_ms();
+    irq_restore(flags);
 }
 
 uint32_t adaptive_background_interval_ms(void)
@@ -308,5 +327,5 @@ size_t adaptive_network_limit(size_t requested)
 
 int adaptive_network_allowed(void)
 {
-    return state.mode != ADAPTIVE_DEFENSIVE;
+    return initialized && state.mode != ADAPTIVE_DEFENSIVE;
 }
