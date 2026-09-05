@@ -41,12 +41,23 @@ static int is_kernel_pde(uint32_t index)
     return index < KERNEL_PDE_LOW_END || index >= USER_PDE_END;
 }
 
+static int user_page(virt_addr_t virt)
+{
+    return virt >= USER_MIN && virt < USER_MAX;
+}
+
 /* Fetch (or create) the page table backing one directory entry. */
 static uint32_t *table_for(struct addr_space *space, virt_addr_t virt,
                            int create, uint32_t extra_flags)
 {
-    uint32_t index = virt >> 22;
-    uint32_t entry = space->pd[index];
+    uint32_t index;
+    uint32_t entry;
+
+    if (!space || !space->pd)
+        return NULL;
+
+    index = virt >> 22;
+    entry = space->pd[index];
 
     if (!(entry & PTE_PRESENT)) {
         phys_addr_t frame;
@@ -56,29 +67,39 @@ static uint32_t *table_for(struct addr_space *space, virt_addr_t virt,
         frame = pmm_alloc_frame();
         if (!frame)
             return NULL;
-        memset((void *)frame, 0, PAGE_SIZE);
+        memset((void *)(uintptr_t)frame, 0, PAGE_SIZE);
         space->pd[index] = frame | PTE_PRESENT | PTE_WRITE | extra_flags;
-        return (uint32_t *)frame;
+        return (uint32_t *)(uintptr_t)frame;
     }
 
     if (extra_flags & PTE_USER)
         space->pd[index] |= PTE_USER;
 
-    return (uint32_t *)(entry & ~0xFFFu);
+    return (uint32_t *)(uintptr_t)(entry & ~0xFFFu);
 }
 
-int vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys, uint32_t flags)
+int vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys,
+               uint32_t flags)
 {
-    uint32_t *table = table_for(space, virt, 1, flags & PTE_USER);
-    uint32_t  index = (virt >> 12) & 0x3FF;
+    uint32_t *table;
+    uint32_t index;
 
+    if (!space || !space->pd)
+        return -1;
+    if ((virt & (PAGE_SIZE - 1)) != 0 || (phys & (PAGE_SIZE - 1)) != 0)
+        return -1;
+    if ((flags & PTE_USER) && !user_page(virt))
+        return -1;
+
+    table = table_for(space, virt, 1, flags & PTE_USER);
+    index = (virt >> 12) & 0x3FF;
     if (!table)
         return -1;
 
     if (!(table[index] & PTE_PRESENT))
         mapped_pages++;
 
-    table[index] = (phys & ~0xFFFu) | (flags & 0xFFFu) | PTE_PRESENT;
+    table[index] = phys | (flags & 0xFFFu) | PTE_PRESENT;
     if (space == current_space)
         invlpg(virt);
     return 0;
@@ -86,50 +107,144 @@ int vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys, uin
 
 void vmm_unmap_in(struct addr_space *space, virt_addr_t virt)
 {
-    uint32_t *table = table_for(space, virt, 0, 0);
-    uint32_t  index = (virt >> 12) & 0x3FF;
+    uint32_t *table;
+    uint32_t index;
+
+    if (!space || !space->pd)
+        return;
+
+    virt = ALIGN_DOWN(virt, PAGE_SIZE);
+    table = table_for(space, virt, 0, 0);
+    index = (virt >> 12) & 0x3FF;
 
     if (!table || !(table[index] & PTE_PRESENT))
         return;
 
     table[index] = 0;
-    mapped_pages--;
+    if (mapped_pages)
+        mapped_pages--;
     if (space == current_space)
         invlpg(virt);
 }
 
 phys_addr_t vmm_translate_in(struct addr_space *space, virt_addr_t virt)
 {
-    uint32_t *table = table_for(space, virt, 0, 0);
-    uint32_t  index = (virt >> 12) & 0x3FF;
+    uint32_t *table;
+    uint32_t index;
+
+    if (!space || !space->pd)
+        return 0;
+
+    table = table_for(space, virt, 0, 0);
+    index = (virt >> 12) & 0x3FF;
 
     if (!table || !(table[index] & PTE_PRESENT))
         return 0;
     return (table[index] & ~0xFFFu) | (virt & 0xFFFu);
 }
 
-/* Allocate fresh frames and map them over a virtual range. */
-int vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size, uint32_t flags)
+/*
+ * Validate every page touched by a user range. Translation alone is not
+ * enough: a kernel/shared page must never satisfy a user pointer check, and
+ * output buffers must be writable before the kernel stores into them.
+ */
+int vmm_access_ok_in(struct addr_space *space, virt_addr_t start, size_t size,
+                     int write)
 {
-    virt_addr_t first = ALIGN_DOWN(start, PAGE_SIZE);
-    virt_addr_t last  = ALIGN_UP(start + size, PAGE_SIZE);
+    uint64_t end;
+    virt_addr_t page;
+
+    if (!space || !space->pd)
+        return 0;
+    if (size == 0)
+        return 1;
+    if (start < USER_MIN || start >= USER_MAX)
+        return 0;
+
+    end = (uint64_t)start + (uint64_t)size;
+    if (end > USER_MAX || end <= start)
+        return 0;
+
+    page = ALIGN_DOWN(start, PAGE_SIZE);
+    while ((uint64_t)page < end) {
+        uint32_t pde = space->pd[page >> 22];
+        uint32_t *table;
+        uint32_t pte;
+
+        if ((pde & (PTE_PRESENT | PTE_USER)) != (PTE_PRESENT | PTE_USER))
+            return 0;
+
+        table = (uint32_t *)(uintptr_t)(pde & ~0xFFFu);
+        pte = table[(page >> 12) & 0x3FF];
+        if ((pte & (PTE_PRESENT | PTE_USER)) != (PTE_PRESENT | PTE_USER))
+            return 0;
+        if (write && !(pte & PTE_WRITE))
+            return 0;
+
+        if (page > UINT32_MAX - PAGE_SIZE)
+            return 0;
+        page += PAGE_SIZE;
+    }
+    return 1;
+}
+
+/* Allocate fresh frames and map them over a virtual range. */
+int vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size,
+                    uint32_t flags)
+{
+    uint64_t end64;
+    virt_addr_t first;
+    virt_addr_t last;
+    virt_addr_t rollback_first = 0;
+    int allocated_any = 0;
+
+    if (!space || !space->pd)
+        return -1;
+    if (size == 0)
+        return 0;
+
+    end64 = (uint64_t)start + (uint64_t)size;
+    if (end64 > UINT32_MAX || end64 <= start)
+        return -1;
+    if ((flags & PTE_USER) &&
+        (start < USER_MIN || end64 > USER_MAX))
+        return -1;
+
+    first = ALIGN_DOWN(start, PAGE_SIZE);
+    last = ALIGN_UP((virt_addr_t)end64, PAGE_SIZE);
+    if (last < first)
+        return -1;
 
     for (virt_addr_t page = first; page < last; page += PAGE_SIZE) {
         phys_addr_t frame;
 
-        if (vmm_translate_in(space, page))
-            continue;               /* already mapped, leave it alone */
+        if (vmm_translate_in(space, page)) {
+            /* Existing leading page is useful for sbrk extending a partial page. */
+            if (allocated_any) {
+                vmm_free_range(space, rollback_first, page - rollback_first);
+                return -1;
+            }
+            continue;
+        }
 
         frame = pmm_alloc_frame();
         if (!frame) {
-            vmm_free_range(space, first, page - first);
+            if (allocated_any)
+                vmm_free_range(space, rollback_first, page - rollback_first);
             return -1;
         }
-        memset((void *)frame, 0, PAGE_SIZE);
+        memset((void *)(uintptr_t)frame, 0, PAGE_SIZE);
+
         if (vmm_map_in(space, page, frame, flags) < 0) {
             pmm_free_frame(frame);
-            vmm_free_range(space, first, page - first);
+            if (allocated_any)
+                vmm_free_range(space, rollback_first, page - rollback_first);
             return -1;
+        }
+
+        if (!allocated_any) {
+            rollback_first = page;
+            allocated_any = 1;
         }
     }
     return 0;
@@ -137,8 +252,21 @@ int vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size, ui
 
 void vmm_free_range(struct addr_space *space, virt_addr_t start, size_t size)
 {
-    virt_addr_t first = ALIGN_DOWN(start, PAGE_SIZE);
-    virt_addr_t last  = ALIGN_UP(start + size, PAGE_SIZE);
+    uint64_t end64;
+    virt_addr_t first;
+    virt_addr_t last;
+
+    if (!space || !space->pd || size == 0)
+        return;
+
+    end64 = (uint64_t)start + (uint64_t)size;
+    if (end64 > UINT32_MAX || end64 <= start)
+        return;
+
+    first = ALIGN_DOWN(start, PAGE_SIZE);
+    last = ALIGN_UP((virt_addr_t)end64, PAGE_SIZE);
+    if (last < first)
+        return;
 
     for (virt_addr_t page = first; page < last; page += PAGE_SIZE) {
         phys_addr_t phys = vmm_translate_in(space, page);
@@ -157,12 +285,16 @@ struct addr_space *vmm_current_space(void) { return current_space; }
 
 int vmm_space_create(struct addr_space *space)
 {
-    phys_addr_t frame = pmm_alloc_frame();
+    phys_addr_t frame;
 
+    if (!space)
+        return -1;
+
+    frame = pmm_alloc_frame();
     if (!frame)
         return -1;
 
-    space->pd = (uint32_t *)frame;
+    space->pd = (uint32_t *)(uintptr_t)frame;
     space->pd_phys = frame;
     memset(space->pd, 0, PAGE_SIZE);
 
@@ -176,7 +308,7 @@ int vmm_space_create(struct addr_space *space)
 
 void vmm_space_destroy(struct addr_space *space)
 {
-    if (!space->pd || space == &kernel_space)
+    if (!space || !space->pd || space == &kernel_space)
         return;
 
     for (uint32_t i = USER_PDE_START; i < USER_PDE_END; i++) {
@@ -186,11 +318,12 @@ void vmm_space_destroy(struct addr_space *space)
         if (!(entry & PTE_PRESENT))
             continue;
 
-        table = (uint32_t *)(entry & ~0xFFFu);
+        table = (uint32_t *)(uintptr_t)(entry & ~0xFFFu);
         for (uint32_t j = 0; j < PTE_COUNT; j++) {
             if (table[j] & PTE_PRESENT) {
                 pmm_free_frame(table[j] & ~0xFFFu);
-                mapped_pages--;
+                if (mapped_pages)
+                    mapped_pages--;
             }
         }
         pmm_free_frame(entry & ~0xFFFu);
@@ -204,7 +337,7 @@ void vmm_space_destroy(struct addr_space *space)
 
 void vmm_space_switch(struct addr_space *space)
 {
-    if (!space || space == current_space)
+    if (!space || !space->pd || space == current_space)
         return;
     current_space = space;
     __asm__ volatile("movl %0, %%cr3" : : "r"(space->pd_phys) : "memory");
@@ -215,7 +348,7 @@ void vmm_space_switch(struct addr_space *space)
 int vmm_map(virt_addr_t virt, phys_addr_t phys, uint32_t flags)
 {
     /* Kernel mappings go into the shared tables, so every process sees them. */
-    return vmm_map_in(&kernel_space, virt, phys, flags);
+    return vmm_map_in(&kernel_space, virt, phys, flags & ~PTE_USER);
 }
 
 void vmm_unmap(virt_addr_t virt)
@@ -251,19 +384,19 @@ static void reserve_tables(virt_addr_t start, virt_addr_t end)
 void paging_init(void)
 {
     phys_addr_t dir_frame = pmm_alloc_frame();
-    uint64_t    ram_end;
+    uint64_t ram_end;
 
     if (!dir_frame)
         panic("paging: cannot allocate the kernel page directory");
 
-    kernel_space.pd = (uint32_t *)dir_frame;
+    kernel_space.pd = (uint32_t *)(uintptr_t)dir_frame;
     kernel_space.pd_phys = dir_frame;
     memset(kernel_space.pd, 0, PAGE_SIZE);
     current_space = &kernel_space;
 
     ram_end = (uint64_t)pmm_total_frames() * PAGE_SIZE;
     if (ram_end > USER_MIN)
-        ram_end = USER_MIN;         /* the kernel half tops out at 1 GiB */
+        ram_end = USER_MIN;
 
     for (uint64_t addr = 0; addr < ram_end; addr += PAGE_SIZE) {
         if (vmm_map_in(&kernel_space, (virt_addr_t)addr, (phys_addr_t)addr,
