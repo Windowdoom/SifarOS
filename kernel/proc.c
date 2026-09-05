@@ -1,11 +1,10 @@
 /*
  * Processes.
  *
- * A process owns an address space, a heap and one or more threads.  The
- * kernel itself is process 0 and keeps the kernel address space; everything
- * loaded from disk gets a private one. Cross-process control is denied unless
- * the caller is the direct parent or holds an explicit kernel-granted
- * capability.
+ * A process owns an address space, a heap and one or more threads. The kernel
+ * itself is process 0 and keeps the kernel address space; everything loaded
+ * from disk gets a private one. Cross-process control is denied unless the
+ * caller is the direct parent or holds an explicit kernel-granted capability.
  */
 #include <kernel/proc.h>
 #include <kernel/elf.h>
@@ -70,7 +69,17 @@ int proc_grant_caps(int pid, uint32_t caps)
 
     if (!proc)
         return -1;
-    proc->capabilities |= caps;
+    proc->capabilities |= caps & PROC_CAP_ALL;
+    return 0;
+}
+
+int proc_revoke_caps(int pid, uint32_t caps)
+{
+    struct process *proc = proc_by_pid(pid);
+
+    if (!proc || proc == kernel_process)
+        return -1;
+    proc->capabilities &= ~(caps & PROC_CAP_ALL);
     return 0;
 }
 
@@ -396,7 +405,8 @@ static int may_reap(struct process *caller, const struct process *target)
 {
     if (!caller || !target || target == kernel_process || target == caller)
         return 0;
-    return caller == kernel_process || target->parent == caller->pid;
+    return caller == kernel_process || target->parent == caller->pid ||
+           proc_has_cap(caller, PROC_CAP_PROCESS_CONTROL);
 }
 
 int proc_wait(int pid, int *exit_code)
@@ -438,9 +448,9 @@ int proc_kill(int pid)
 
     if (!proc || proc == kernel_process || proc == caller)
         return -1;
-    if (!proc_has_cap(caller, PROC_CAP_PROCESS_CONTROL) &&
-        proc->parent != caller->pid) {
-        security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,
+    if (caller != kernel_process && proc->parent != caller->pid &&
+        !proc_has_cap(caller, PROC_CAP_PROCESS_CONTROL)) {
+        security_event_record(SECURITY_EVENT_CAPABILITY_DENIED,
                               caller ? (uint32_t)caller->pid : 0,
                               SYS_KILL, SECURITY_RESPONSE_SUSPICIOUS);
         return -1;
