@@ -3,7 +3,7 @@
  *
  * Output goes to the serial line always, to the screen while the kernel owns
  * it, and into a ring buffer that survives the handover to the desktop so the
- * boot log can still be read afterwards.  Input arrives from either the PS/2
+ * boot log can still be read afterwards. Input arrives from either the PS/2
  * keyboard or the serial line, which is what lets the whole system be driven
  * headlessly from a script.
  */
@@ -16,10 +16,11 @@
 #define KLOG_SIZE (64 * 1024)
 
 static char     klog[KLOG_SIZE];
-static uint32_t klog_head;          /* total bytes ever written */
+static uint32_t klog_head;
 static int      have_serial;
 static int      have_vga_text;
 static int      screen_enabled = 1;
+static int      keyboard_enabled = 1;
 
 static void klog_putc(char c)
 {
@@ -39,7 +40,6 @@ uint32_t console_log_read(char *buffer, uint32_t size)
     return count;
 }
 
-/* Called before graphics exist: serial plus VGA text if we are in text mode. */
 void console_init(int text_mode)
 {
     serial_init();
@@ -49,7 +49,6 @@ void console_init(int text_mode)
         vga_init();
 }
 
-/* Called once the framebuffer console is up: replay everything logged so far. */
 void console_attach_screen(void)
 {
     uint32_t available = (klog_head < KLOG_SIZE) ? klog_head : KLOG_SIZE;
@@ -64,6 +63,11 @@ void console_set_screen_output(int enabled)
     screen_enabled = enabled;
     if (!enabled)
         fbcon_disable();
+}
+
+void console_set_keyboard_input(int enabled)
+{
+    keyboard_enabled = enabled;
 }
 
 void console_putc(char c)
@@ -94,10 +98,6 @@ void console_clear(void)
         serial_write("\033[2J\033[H", 7);
 }
 
-/*
- * Terminals send arrow keys as escape sequences.  Decode the common ones so
- * that a serial user gets the same key codes as someone at the keyboard.
- */
 static int decode_serial_escape(void)
 {
     int spin = 200000;
@@ -106,7 +106,7 @@ static int decode_serial_escape(void)
     while (spin-- > 0 && (c1 = serial_poll()) < 0)
         ;
     if (c1 != '[')
-        return 27;                  /* bare ESC */
+        return 27;
 
     spin = 200000;
     while (spin-- > 0 && (c2 = serial_poll()) < 0)
@@ -123,7 +123,7 @@ static int decode_serial_escape(void)
         int spin2 = 200000, c3 = -1;
         while (spin2-- > 0 && (c3 = serial_poll()) < 0)
             ;
-        (void)c3;                   /* swallow the trailing '~' */
+        (void)c3;
         return KEY_DELETE;
     }
     default:  return 27;
@@ -132,10 +132,13 @@ static int decode_serial_escape(void)
 
 int console_trygetc(void)
 {
-    int c = keyboard_trygetc();
+    int c = -1;
 
-    if (c >= 0)
-        return c;
+    if (keyboard_enabled) {
+        c = keyboard_trygetc();
+        if (c >= 0)
+            return c;
+    }
 
     c = serial_poll();
     if (c < 0)
@@ -143,7 +146,7 @@ int console_trygetc(void)
     if (c == 27)
         return decode_serial_escape();
     if (c == 127)
-        return '\b';                /* most terminals send DEL for backspace */
+        return '\b';
     if (c == '\r')
         return '\n';
     return c;
@@ -153,7 +156,6 @@ int console_getc(void)
 {
     for (;;) {
         int c = console_trygetc();
-
         if (c >= 0)
             return c;
         sched_yield();
