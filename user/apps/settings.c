@@ -1,11 +1,10 @@
 /*
- * Settings.
+ * Sifar Settings.
  *
  * Preferences are written to /etc/desktop.conf; the desktop watches that file
- * and picks up changes, which is the simplest kind of message passing there
- * is - both sides already agree on the filesystem.
+ * and picks up changes. Every control shown here has a real effect today.
  */
-#include "ui.h"
+#include "future_ui.h"
 
 #define CONFIG "/etc/desktop.conf"
 
@@ -14,16 +13,16 @@ static const char *theme_names[] = {
 };
 
 static const uint32_t theme_colors[][2] = {
-    { 0xFF141E34, 0xFF2A3E62 },
-    { 0xFF1C2026, 0xFF39424E },
-    { 0xFF12241A, 0xFF265038 },
-    { 0xFF241428, 0xFF4A2A54 },
-    { 0xFF2A1810, 0xFF5A2E18 },
+    {0xFF0A0F1C, 0xFF213A66},
+    {0xFF11151C, 0xFF3B4658},
+    {0xFF0A1712, 0xFF24533B},
+    {0xFF17101E, 0xFF50305E},
+    {0xFF1B100B, 0xFF69371C},
 };
 
-static int  theme = 0;
-static int  show_grid = 1;
-static char status[96] = "";
+static int theme;
+static int show_grid = 1;
+static char status[96] = "Changes apply to the desktop automatically";
 
 static void load_config(void)
 {
@@ -40,7 +39,9 @@ static void load_config(void)
         else if (strncmp(p, "grid=", 5) == 0)
             show_grid = atoi(p + 5);
     }
-    if (theme < 0 || theme >= (int)(sizeof(theme_names) / sizeof(theme_names[0])))
+
+    if (theme < 0 ||
+        theme >= (int)(sizeof(theme_names) / sizeof(theme_names[0])))
         theme = 0;
 }
 
@@ -50,62 +51,95 @@ static void save_config(void)
     int length = snprintf(buffer, sizeof(buffer), "theme=%d\ngrid=%d\n",
                           theme, show_grid);
 
-    if (file_write(CONFIG, buffer, length) < 0)
-        strlcpy(status, "could not write the settings file", sizeof(status));
+    if (file_write(CONFIG, buffer, (size_t)length) < 0)
+        strlcpy(status, "Could not save preferences", sizeof(status));
     else
-        strlcpy(status, "saved, the desktop picks this up in a moment", sizeof(status));
+        strlcpy(status, "Saved. The desktop will update shortly", sizeof(status));
+}
+
+static int theme_card(ui_window *w, int x, int y, int width, int index)
+{
+    int selected = theme == index;
+    int hovered = ui_hit(w, x, y, width, 66);
+
+    ui_round_fill(w, x + 2, y + 4, width, 66, 12,
+                  UI_RGB(0x05, 0x08, 0x0D));
+    ui_round_fill(w, x, y, width, 66, 12,
+                  selected ? UI_PANEL_LIGHT : UI_PANEL);
+    ui_gradient(w, x + 10, y + 10, 48, 46,
+                theme_colors[index][0], theme_colors[index][1]);
+    ui_round_fill(w, x + 68, y + 11, width - 78, 44, 9,
+                  hovered ? UI_SURFACE_ALT : UI_SURFACE);
+    fu_text(w, x + 80, y + 18, theme_names[index], UI_TEXT);
+    fu_text(w, x + 80, y + 38, selected ? "active" : "preview",
+            selected ? UI_ACCENT_LIGHT : UI_TEXT_DIM);
+
+    if (selected) {
+        ui_circle(w, x + width - 16, y + 16, 5, UI_ACCENT);
+        ui_circle(w, x + width - 16, y + 16, 2, UI_WHITE);
+    }
+
+    return hovered && w->mouse_pressed;
 }
 
 int main(int argc, char **argv)
 {
     ui_window *window;
 
+    (void)argc;
+    (void)argv;
     ui_init();
-    window = ui_window_open("Settings", 480, 420, GUI_FIXED);
+    fu_init();
+
+    window = ui_window_open("Sifar Settings", 620, 560, GUI_FIXED);
     if (!window)
         return 1;
 
     load_config();
 
     while (ui_begin(window)) {
-        int y;
+        ui_gradient(window, 0, 0, window->width, window->height,
+                    UI_RGB(0x07, 0x0B, 0x13), UI_RGB(0x0D, 0x15, 0x25));
+        ui_blend(window, window->width / 2, 0, window->width / 2, 180,
+                 UI_RGBA(0x4F, 0x7D, 0xF3, 16));
 
-        ui_clear(window, UI_BG);
-        ui_text_scaled(window, 20, 18, "Settings", UI_TEXT, 2);
+        fu_section_title(window, 24, 22, "PERSONALIZE",
+                         "Make the system feel like yours");
+        fu_text(window, 24, 88,
+                "Only settings with a real system effect are shown here.",
+                UI_TEXT_DIM);
 
-        ui_panel(window, 16, 60, window->width - 32, 176, "Desktop theme");
-        y = 96;
-        for (unsigned i = 0; i < sizeof(theme_names) / sizeof(theme_names[0]); i++) {
-            int x = 28 + (int)(i % 3) * 146;
-            int row = (int)(i / 3);
-            int box_y = y + row * 62;
-            int selected = (theme == (int)i);
+        fu_card(window, 24, 122, window->width - 48, 242);
+        fu_text(window, 40, 138, "DESKTOP THEME", UI_TEXT_DIM);
 
-            ui_gradient(window, x, box_y, 130, 44, theme_colors[i][0], theme_colors[i][1]);
-            ui_frame(window, x, box_y, 130, 44, selected ? UI_ACCENT_LIGHT : UI_BORDER);
-            if (selected)
-                ui_frame(window, x - 1, box_y - 1, 132, 46, UI_ACCENT_LIGHT);
-            ui_text(window, x + 8, box_y + 14, theme_names[i], UI_WHITE);
+        for (unsigned i = 0;
+             i < sizeof(theme_names) / sizeof(theme_names[0]); i++) {
+            int col = (int)(i % 2);
+            int row = (int)(i / 2);
+            int x = 40 + col * 278;
+            int y = 168 + row * 72;
 
-            if (ui_hit(window, x, box_y, 130, 44) && window->mouse_pressed) {
+            if (theme_card(window, x, y, 258, (int)i)) {
                 theme = (int)i;
                 save_config();
                 window->dirty = 1;
             }
         }
 
-        ui_panel(window, 16, 248, window->width - 32, 76, "Appearance");
-        if (ui_toggle(window, 30, 284, "show the desktop grid", &show_grid))
+        fu_card(window, 24, 382, window->width - 48, 70);
+        fu_text(window, 40, 398, "DESKTOP", UI_TEXT_DIM);
+        if (ui_toggle(window, 40, 424, "show spatial grid", &show_grid))
             save_config();
 
-        if (ui_button_colored(window, 16, 340, 140, 32, "Restart", UI_WARN))
+        fu_card(window, 24, 470, window->width - 48, 66);
+        if (fu_button(window, 40, 486, 124, 34, "Restart", UI_WARN))
             reboot();
-        if (ui_button_colored(window, 166, 340, 140, 32, "Shut down", UI_BAD))
+        if (fu_button(window, 176, 486, 124, 34, "Shut down", UI_BAD))
             shutdown();
-        if (ui_button(window, 316, 340, 140, 32, "Save now"))
+        if (fu_button(window, 312, 486, 124, 34, "Save now", UI_ACCENT))
             save_config();
 
-        ui_text(window, 20, window->height - 26, status, UI_TEXT_DIM);
+        fu_text(window, 40, 544, status, UI_TEXT_DIM);
 
         ui_end(window);
         ui_frame_wait();
