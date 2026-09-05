@@ -23,7 +23,7 @@ fi
 ARGS=(-drive "format=raw,file=$IMAGE" -m "$MEMORY" -no-reboot -boot c)
 
 # Hardware virtualisation makes the software compositor feel immediate rather
-# than merely usable.  Fall back quietly when it is not available.
+# than merely usable. Fall back quietly when it is not available.
 if [ -w /dev/kvm ]; then
     ARGS+=(-accel kvm -cpu host)
 fi
@@ -43,7 +43,15 @@ case "$MODE" in
         echo "Waiting for gdb: target remote localhost:1234"
         ;;
     auto|"")
-        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        if [ "$(uname -s)" = "Darwin" ]; then
+            # macOS does not normally export DISPLAY or WAYLAND_DISPLAY.
+            # Homebrew QEMU provides the native Cocoa display backend, so use
+            # it explicitly instead of incorrectly falling back to headless.
+            ARGS+=(-display cocoa -serial mon:stdio)
+            echo "SifarOS is booting in a QEMU window."
+            echo "Click inside it to give it the mouse; Ctrl-Alt-G gives it back."
+            echo "This terminal is the kernel console: type 'help' for its commands."
+        elif [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             ARGS+=(-serial mon:stdio)
             echo "SifarOS is booting in a window."
             echo "Click inside it to give it the mouse; Ctrl-Alt-G gives it back."
