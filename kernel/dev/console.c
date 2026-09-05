@@ -20,6 +20,7 @@ static uint32_t klog_head;          /* total bytes ever written */
 static int      have_serial;
 static int      have_vga_text;
 static int      screen_enabled = 1;
+static int      keyboard_enabled = 1;
 
 static void klog_putc(char c)
 {
@@ -64,6 +65,16 @@ void console_set_screen_output(int enabled)
     screen_enabled = enabled;
     if (!enabled)
         fbcon_disable();
+}
+
+/*
+ * Once the desktop owns the screen, the physical keyboard belongs to whichever
+ * window has focus.  The kernel console keeps working over the serial line,
+ * which is what it is for.
+ */
+void console_set_keyboard_input(int enabled)
+{
+    keyboard_enabled = enabled;
 }
 
 void console_putc(char c)
@@ -132,10 +143,13 @@ static int decode_serial_escape(void)
 
 int console_trygetc(void)
 {
-    int c = keyboard_trygetc();
+    int c = -1;
 
-    if (c >= 0)
-        return c;
+    if (keyboard_enabled) {
+        c = keyboard_trygetc();
+        if (c >= 0)
+            return c;
+    }
 
     c = serial_poll();
     if (c < 0)

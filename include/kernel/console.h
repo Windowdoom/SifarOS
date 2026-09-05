@@ -39,6 +39,7 @@ int  serial_poll(void);          /* -1 when no byte is waiting */
 void console_init(int text_mode);
 void console_attach_screen(void);
 void console_set_screen_output(int enabled);
+void console_set_keyboard_input(int enabled);
 uint32_t console_log_read(char *buffer, uint32_t size);
 
 /* framebuffer text console */

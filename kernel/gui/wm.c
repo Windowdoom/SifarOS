@@ -923,6 +923,9 @@ void wm_start(void)
 {
     if (!initialised)
         return;
-    console_set_screen_output(0);       /* the desktop owns the screen now */
+    /* The desktop owns the screen and the keyboard from here; the kernel
+       console carries on over the serial line. */
+    console_set_screen_output(0);
+    console_set_keyboard_input(0);
     thread_create("compositor", compositor_thread, NULL);
 }
