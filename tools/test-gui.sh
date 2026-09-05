@@ -2,14 +2,17 @@
 # Drive the desktop the way a person would and check what comes back.
 #
 # QEMU's monitor gives us a mouse and a keyboard; screendump gives us the
-# frame.  The checks look at both the serial log (nothing crashed) and the
+# frame. The checks look at both the serial log (nothing crashed) and the
 # pixels (the thing we asked for actually appeared).
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+source tools/common.sh
 source tools/gui-drive.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
+QEMU=${QEMU:-qemu-system-i386}
+CPU=${CPU:-max}
 SHOTS=${SHOTS:-build/shots}
 SERIAL=${SERIAL:-build/gui-test.log}
 MEMORY=${MEMORY:-512}
@@ -26,7 +29,8 @@ if [ "${FRESH:-1}" = "1" ]; then
 fi
 
 # Window geometry the window manager gives the first three application windows.
-TERMINAL_TITLE_X=300; TERMINAL_TITLE_Y=46
+TERMINAL_TITLE_X=300
+TERMINAL_TITLE_Y=46
 
 session() {
     sleep "$BOOT_WAIT"
@@ -63,17 +67,17 @@ session() {
     echo "mouse_button 0"; sleep 0.5
     echo "screendump $SHOTS/06-dragged.ppm"; sleep 1
 
-    click_at $TERMINAL_TITLE_X $TERMINAL_TITLE_Y     # back to the terminal
+    click_at "$TERMINAL_TITLE_X" "$TERMINAL_TITLE_Y"
     sleep 1
     type_text "run editor /home/readme.txt"; echo "sendkey ret"; sleep 4
     echo "screendump $SHOTS/07-editor.ppm"; sleep 1
 
-    click_at $TERMINAL_TITLE_X $TERMINAL_TITLE_Y
+    click_at "$TERMINAL_TITLE_X" "$TERMINAL_TITLE_Y"
     sleep 1
     type_text "run snake"; echo "sendkey ret"; sleep 4
     echo "screendump $SHOTS/08-snake.ppm"; sleep 1
 
-    click_at $TERMINAL_TITLE_X $TERMINAL_TITLE_Y
+    click_at "$TERMINAL_TITLE_X" "$TERMINAL_TITLE_Y"
     sleep 1
     type_text "ps"; echo "sendkey ret"; sleep 2
     echo "screendump $SHOTS/09-processes.ppm"; sleep 1
@@ -83,9 +87,10 @@ session() {
 }
 
 echo "booting the desktop and driving it..."
-session | timeout 300 qemu-system-i386 \
+session | run_limited 300 "$QEMU" \
     -drive "format=raw,file=$IMAGE" \
     -m "$MEMORY" \
+    -cpu "$CPU" \
     -display none \
     -monitor stdio \
     -serial "file:$SERIAL" \
