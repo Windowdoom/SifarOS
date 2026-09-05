@@ -11,11 +11,22 @@
 #   make clean
 # ============================================================================
 
-CC      := gcc
-LD      := ld
-AS      := gcc
+# ---- toolchain -------------------------------------------------------------
+# The kernel is 32-bit x86, which a native compiler on macOS or on an ARM
+# machine cannot target at all.  Prefer a cross compiler whenever one is
+# installed and fall back to the system one, which is what works on a 32-bit
+# capable Linux box with gcc-multilib.
+CROSS ?= $(shell for prefix in i686-elf i386-elf i686-linux-gnu; do \
+             if command -v $$prefix-gcc >/dev/null 2>&1; then \
+                 printf '%s-' "$$prefix"; break; \
+             fi; \
+         done)
+
+CC      := $(CROSS)gcc
+LD      := $(CROSS)ld
+AS      := $(CC)
 NASM    := nasm
-OBJCOPY := objcopy
+OBJCOPY := $(CROSS)objcopy
 
 BUILD   := build
 KERNEL_ELF := $(BUILD)/kernel.elf
@@ -68,9 +79,27 @@ FS_CONTENT := \
 	--text '/home/readme.txt:This file lives on the disk and survives a reboot.\n\nOpen it in the text editor, change it, and it will still be here\nafter the next boot.\n' \
 	--text '/docs/about.txt:SifarOS was written from scratch: bootloader, kernel, drivers,\nfilesystem, window system and every application you can see.\n'
 
-.PHONY: all clean run run-serial test test-gui test-all debug shot apps
+.PHONY: all clean run run-serial test test-gui test-all debug shot apps toolchain
 
-all: $(IMAGE)
+# Fail with an explanation rather than a hundred assembler errors when the
+# compiler in use cannot produce 32-bit x86 code.
+TOOLCHAIN_OK := $(shell printf 'int main(void){return 0;}' > /tmp/.sifaros-probe.c 2>/dev/null && \
+                  $(CC) -m32 -ffreestanding -nostdlib -c /tmp/.sifaros-probe.c \
+                        -o /tmp/.sifaros-probe.o >/dev/null 2>&1 && echo yes)
+
+toolchain:
+ifneq ($(TOOLCHAIN_OK),yes)
+	@echo "ERROR: '$(CC)' cannot compile 32-bit x86 code."
+	@echo
+	@echo "  macOS:          brew install i686-elf-gcc i686-elf-binutils nasm qemu"
+	@echo "  Debian/Ubuntu:  sudo apt-get install build-essential gcc-multilib nasm qemu-system-x86"
+	@echo "  Fedora:         sudo dnf install gcc glibc-devel.i686 nasm qemu-system-x86 make"
+	@echo
+	@echo "The build picks up i686-elf-gcc automatically once it is installed."
+	@exit 1
+endif
+
+all: toolchain $(IMAGE)
 
 # ---- kernel objects --------------------------------------------------------
 $(BUILD)/%.o: %.c
@@ -111,7 +140,7 @@ $(KERNEL_ELF): $(OBJECTS) $(USER_BLOBS) linker.ld
 
 $(KERNEL_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary $< $@
-	@size=$$(stat -c%s $@); \
+	@size=$$(wc -c < $@ | tr -d ' '); \
 	max=$$(( $(KERNEL_SECTORS) * 512 )); \
 	echo "kernel image: $$size bytes (limit $$max)"; \
 	if [ $$size -gt $$max ]; then echo "ERROR: kernel too large for the reserved area"; exit 1; fi
@@ -137,11 +166,11 @@ $(FS_IMAGE): tools/mkfs.py $(APP_ELVES)
 		$(FS_CONTENT)
 
 $(IMAGE): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(KERNEL_BIN) $(FS_IMAGE)
-	@dd if=/dev/zero of=$@ bs=512 count=$(IMAGE_SECTORS) status=none
-	@dd if=$(BUILD)/stage1.bin of=$@ bs=512 seek=0 conv=notrunc status=none
-	@dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 conv=notrunc status=none
-	@dd if=$(KERNEL_BIN) of=$@ bs=512 seek=$(KERNEL_LBA) conv=notrunc status=none
-	@dd if=$(FS_IMAGE) of=$@ bs=512 seek=$(FS_LBA) conv=notrunc status=none
+	@dd if=/dev/zero of=$@ bs=512 count=$(IMAGE_SECTORS) 2>/dev/null
+	@dd if=$(BUILD)/stage1.bin of=$@ bs=512 seek=0 conv=notrunc 2>/dev/null
+	@dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 conv=notrunc 2>/dev/null
+	@dd if=$(KERNEL_BIN) of=$@ bs=512 seek=$(KERNEL_LBA) conv=notrunc 2>/dev/null
+	@dd if=$(FS_IMAGE) of=$@ bs=512 seek=$(FS_LBA) conv=notrunc 2>/dev/null
 	@echo "disk image: $@"
 
 run: $(IMAGE)

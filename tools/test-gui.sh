@@ -7,6 +7,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+source tools/common.sh
 source tools/gui-drive.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
@@ -83,7 +84,7 @@ session() {
 }
 
 echo "booting the desktop and driving it..."
-session | timeout 300 qemu-system-i386 \
+session | run_limited 300 qemu-system-i386 \
     -drive "format=raw,file=$IMAGE" \
     -m "$MEMORY" \
     -display none \

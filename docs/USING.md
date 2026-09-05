@@ -23,13 +23,20 @@ sudo apt-get install build-essential gcc-multilib nasm python3 qemu-system-x86
 sudo dnf install gcc glibc-devel.i686 nasm python3 qemu-system-x86 make
 ```
 
-**macOS** (the kernel needs a 32-bit capable compiler, so use a cross
-toolchain):
+**macOS**, Intel or Apple Silicon. The compiler Apple ships cannot produce
+32-bit x86 code at all, so a cross compiler is required. Homebrew has one:
 
 ```sh
 brew install qemu nasm i686-elf-gcc i686-elf-binutils
-make CC=i686-elf-gcc LD=i686-elf-ld OBJCOPY=i686-elf-objcopy
+brew install coreutils
 ```
+
+The build finds `i686-elf-gcc` on its own, so plain `make` works after that.
+`coreutils` is only needed for `make test`, which wants a `timeout` command.
+
+If you see a wall of errors like `invalid instruction, did you mean: ldr, pld?`
+then the build is using Apple's compiler and it is trying to assemble x86 as
+ARM. Install the cross compiler above and run `make clean` before `make`.
 
 **Windows:** install WSL2 with Ubuntu, then follow the Ubuntu instructions
 inside it. Running a graphical QEMU window needs WSLg, which ships with
@@ -39,9 +46,13 @@ console from the terminal.
 ## 3. Build and boot
 
 ```sh
-make        # about ten seconds
+make
 make run
 ```
+
+The first takes about ten seconds. Note for macOS: do not paste a command
+with a trailing `# comment` into zsh. Unlike bash, an interactive zsh does
+not treat `#` as the start of a comment and will pass it to the command.
 
 A window opens and the system boots to its desktop in well under a second.
 
@@ -159,10 +170,20 @@ make shot       # save a screenshot to build/screen.png
 `make test-gui` rebuilds the disk image first, so it starts from a known state.
 That wipes anything you saved. Set `FRESH=0` to keep it.
 
+On Apple Silicon everything runs under emulation, with no hardware
+virtualisation for a 32-bit x86 guest, so the desktop will feel slower than
+the timings quoted here. It still works.
+
 ## 9. When something goes wrong
 
-**The build fails on `-m32`.** The 32-bit headers are missing: install
-`gcc-multilib` (Debian, Ubuntu) or `glibc-devel.i686` (Fedora).
+**The build fails on `-m32`, or the assembler talks about ARM instructions.**
+The compiler cannot target 32-bit x86. On Debian or Ubuntu install
+`gcc-multilib`, on Fedora `glibc-devel.i686`, on macOS `i686-elf-gcc` and
+`i686-elf-binutils` from Homebrew. `make` prints this advice itself and stops
+rather than burying you in assembler errors.
+
+**`make test` says `timeout: command not found`.** That is macOS. Install
+Homebrew coreutils, which provides `gtimeout`, and the scripts will find it.
 
 **No window appears.** There is no display. Use `make run-serial`, or on WSL
 install WSLg.

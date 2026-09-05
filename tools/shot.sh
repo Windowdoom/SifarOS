@@ -8,6 +8,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+source tools/common.sh
 
 OUT=${1:-build/screen.png}
 WAIT=${2:-6}
@@ -28,7 +29,7 @@ mkdir -p "$(dirname "$OUT")"
     echo "screendump $PPM"
     sleep 1.5
     echo "quit"
-} | timeout 180 qemu-system-i386 \
+} | run_limited 180 qemu-system-i386 \
         -drive "format=raw,file=build/sifaros.img" \
         -m "$MEMORY" \
         -display none \

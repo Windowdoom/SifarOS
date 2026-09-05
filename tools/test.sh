@@ -8,6 +8,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+source tools/common.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
 QEMU=${QEMU:-qemu-system-i386}
@@ -39,7 +40,7 @@ run_session() {
             esac
         done
         sleep 2
-    } | timeout "$TIMEOUT" "$QEMU" \
+    } | run_limited "$TIMEOUT" "$QEMU" \
             -drive "format=raw,file=$IMAGE" \
             -m "$MEMORY" \
             -display none \
