@@ -181,12 +181,6 @@ static int32_t sys_path_op(uint32_t path_ptr, int operation) {
     strlcpy(proc->cwd, absolute, FS_PATH_MAX);
     return 0;
   }
-  case SYS_NET_INFO:
-    result = sys_net_info(arg1);
-    break;
-  case SYS_HTTP_GET:
-    result = sys_http_get(arg1, arg2, arg3);
-    break;
   default:
     return -1;
   }
@@ -542,6 +536,12 @@ static void syscall_handler(struct registers *regs) {
       denied(number);
       result = -1;
     }
+    break;
+  case SYS_NET_INFO:
+    result = sys_net_info(arg1);
+    break;
+  case SYS_HTTP_GET:
+    result = sys_http_get(arg1, arg2, arg3);
     break;
   case SYS_FONT: {
     void *out = (void *)(uintptr_t)arg1;
