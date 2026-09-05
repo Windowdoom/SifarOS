@@ -12,6 +12,7 @@
  * current offending userspace process from the syscall boundary.
  */
 #include <kernel/security.h>
+#include <kernel/adaptive.h>
 #include <kernel/proc.h>
 #include <kernel/sched.h>
 #include <kernel/string.h>
@@ -174,6 +175,7 @@ enum security_response security_syscall_violation(uint32_t code)
         irq_restore(flags);
         event_store(SECURITY_EVENT_RESOURCE_ABUSE, (uint32_t)proc->pid,
                     code, SECURITY_RESPONSE_ISOLATE);
+        adaptive_note_security(SECURITY_RESPONSE_ISOLATE);
         proc_revoke_caps(proc->pid, PROC_CAP_ALL);
         return SECURITY_RESPONSE_ISOLATE;
     }
@@ -198,6 +200,7 @@ enum security_response security_syscall_violation(uint32_t code)
 
     event_store(SECURITY_EVENT_SYSCALL_VIOLATION,
                 (uint32_t)proc->pid, code, response);
+    adaptive_note_security((uint32_t)response);
 
     if (response == SECURITY_RESPONSE_KILL)
         proc_exit(-126);
