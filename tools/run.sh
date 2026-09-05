@@ -20,10 +20,15 @@ if [ ! -f "$IMAGE" ]; then
     exit 1
 fi
 
-ARGS=(-drive "format=raw,file=$IMAGE" -m "$MEMORY" -no-reboot -boot c)
+# QEMU user networking gives the guest an isolated NAT environment without
+# requiring root privileges or host configuration. SifarOS talks to a real
+# emulated RTL8139 PCI NIC; there are no host-side browser/network callbacks.
+ARGS=(-drive "format=raw,file=$IMAGE" -m "$MEMORY" -no-reboot -boot c
+      -netdev user,id=sifarnet -device rtl8139,netdev=sifarnet)
 
 # Hardware virtualisation makes the software compositor feel immediate rather
-# than merely usable. Fall back quietly when it is not available.
+# than merely usable. Fall back quietly when it is not available. Apple
+# Silicon runs the x86 guest through TCG, which still exposes PAE/NX.
 if [ -w /dev/kvm ]; then
     ARGS+=(-accel kvm -cpu host)
 fi
@@ -44,9 +49,6 @@ case "$MODE" in
         ;;
     auto|"")
         if [ "$(uname -s)" = "Darwin" ]; then
-            # macOS does not normally export DISPLAY or WAYLAND_DISPLAY.
-            # Homebrew QEMU provides the native Cocoa display backend, so use
-            # it explicitly instead of incorrectly falling back to headless.
             ARGS+=(-display cocoa -serial mon:stdio)
             echo "SifarOS is booting in a QEMU window."
             echo "Click inside it to give it the mouse; Ctrl-Alt-G gives it back."
