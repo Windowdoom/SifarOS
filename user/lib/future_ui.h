@@ -16,11 +16,12 @@
 #define FU_CARD_RADIUS  12
 #define FU_PAD          18
 #define FU_ROW          28
+#define FU_FN static inline __attribute__((unused))
 
 static uint8_t fu_font[4096];
 static int fu_font_ready;
 
-static int fu_init(void)
+FU_FN int fu_init(void)
 {
     if (fu_font_ready)
         return 0;
@@ -30,7 +31,7 @@ static int fu_init(void)
     return 0;
 }
 
-static void fu_glyph_bounds(unsigned char ch, int *left, int *right)
+FU_FN void fu_glyph_bounds(unsigned char ch, int *left, int *right)
 {
     const uint8_t *glyph = fu_font + ch * UI_GLYPH_H;
     int lo = UI_GLYPH_W;
@@ -62,14 +63,14 @@ static void fu_glyph_bounds(unsigned char ch, int *left, int *right)
     *right = hi;
 }
 
-static int fu_advance(unsigned char ch)
+FU_FN int fu_advance(unsigned char ch)
 {
     int left, right;
     fu_glyph_bounds(ch, &left, &right);
     return (right - left + 1) + 2;
 }
 
-static int fu_text_width(const char *text)
+FU_FN int fu_text_width(const char *text)
 {
     int width = 0;
 
@@ -82,8 +83,8 @@ static int fu_text_width(const char *text)
     return width;
 }
 
-static void fu_text(ui_window *w, int x, int y, const char *text,
-                    uint32_t color)
+FU_FN void fu_text(ui_window *w, int x, int y, const char *text,
+                   uint32_t color)
 {
     fu_init();
     for (; text && *text; text++) {
@@ -105,8 +106,6 @@ static void fu_text(ui_window *w, int x, int y, const char *text,
                 if (!(bits & (0x80u >> col)))
                     continue;
 
-                /* A one-pixel low-alpha halo softens the console bitmap edge.
-                 * The solid center stays crisp on the software compositor. */
                 ui_blend(w, x + col - left - 1, y + row, 1, 1,
                          UI_RGBA(255, 255, 255, 28));
                 ui_blend(w, x + col - left + 1, y + row, 1, 1,
@@ -123,16 +122,14 @@ static void fu_text(ui_window *w, int x, int y, const char *text,
     w->dirty = 1;
 }
 
-static void fu_text_center(ui_window *w, int x, int y, int width,
-                           const char *text, uint32_t color)
+FU_FN void fu_text_center(ui_window *w, int x, int y, int width,
+                          const char *text, uint32_t color)
 {
     fu_text(w, x + (width - fu_text_width(text)) / 2, y, text, color);
 }
 
-static void fu_card(ui_window *w, int x, int y, int width, int height)
+FU_FN void fu_card(ui_window *w, int x, int y, int width, int height)
 {
-    /* Shadow + translucent-looking layered surface without requiring a blur
-     * shader or GPU compositor. */
     ui_round_fill(w, x + 3, y + 5, width, height, FU_CARD_RADIUS,
                   UI_RGB(0x06, 0x0A, 0x12));
     ui_round_fill(w, x, y, width, height, FU_CARD_RADIUS, UI_PANEL);
@@ -140,8 +137,8 @@ static void fu_card(ui_window *w, int x, int y, int width, int height)
              UI_RGBA(0xFF, 0xFF, 0xFF, 22));
 }
 
-static void fu_chip(ui_window *w, int x, int y, const char *label,
-                    uint32_t accent)
+FU_FN void fu_chip(ui_window *w, int x, int y, const char *label,
+                   uint32_t accent)
 {
     int width = fu_text_width(label) + 20;
     ui_round_fill(w, x, y, width, 26, 13, UI_SURFACE_ALT);
@@ -149,8 +146,8 @@ static void fu_chip(ui_window *w, int x, int y, const char *label,
     fu_text(w, x + 17, y + 5, label, UI_TEXT);
 }
 
-static int fu_button(ui_window *w, int x, int y, int width, int height,
-                     const char *label, uint32_t accent)
+FU_FN int fu_button(ui_window *w, int x, int y, int width, int height,
+                    const char *label, uint32_t accent)
 {
     int id = ++w->widget_counter;
     int hover = ui_hit(w, x, y, width, height);
@@ -178,8 +175,8 @@ static int fu_button(ui_window *w, int x, int y, int width, int height,
     return clicked;
 }
 
-static int fu_textbox(ui_window *w, int x, int y, int width,
-                      char *text, int capacity)
+FU_FN int fu_textbox(ui_window *w, int x, int y, int width,
+                     char *text, int capacity)
 {
     int id = ++w->widget_counter;
     int height = 36;
@@ -222,16 +219,16 @@ static int fu_textbox(ui_window *w, int x, int y, int width,
     return submitted;
 }
 
-static void fu_section_title(ui_window *w, int x, int y, const char *eyebrow,
-                             const char *title)
+FU_FN void fu_section_title(ui_window *w, int x, int y, const char *eyebrow,
+                            const char *title)
 {
     fu_text(w, x, y, eyebrow, UI_ACCENT_LIGHT);
     ui_text_scaled(w, x, y + 23, title, UI_TEXT, 2);
 }
 
-static void fu_metric(ui_window *w, int x, int y, int width,
-                      const char *label, const char *value,
-                      const char *detail, uint32_t accent)
+FU_FN void fu_metric(ui_window *w, int x, int y, int width,
+                     const char *label, const char *value,
+                     const char *detail, uint32_t accent)
 {
     fu_card(w, x, y, width, 94);
     fu_text(w, x + 16, y + 14, label, UI_TEXT_DIM);
@@ -240,7 +237,7 @@ static void fu_metric(ui_window *w, int x, int y, int width,
     fu_text(w, x + 54, y + 59, detail, UI_TEXT_DIM);
 }
 
-static uint32_t fu_mode_color(const char *mode)
+FU_FN uint32_t fu_mode_color(const char *mode)
 {
     if (!mode)
         return UI_ACCENT;
