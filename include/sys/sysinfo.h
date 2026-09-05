@@ -5,6 +5,15 @@
 
 #define SYS_NAME_MAX 32
 
+/* Public names for the Sifar Adaptive Core modes. Keep these values aligned
+ * with the kernel's enum adaptive_mode so tools can explain what the OS is
+ * doing without depending on kernel-only headers. */
+#define SYS_ADAPTIVE_BALANCED   0u
+#define SYS_ADAPTIVE_RESPONSIVE 1u
+#define SYS_ADAPTIVE_PRESSURE   2u
+#define SYS_ADAPTIVE_DEFENSIVE  3u
+#define SYS_ADAPTIVE_QUIET      4u
+
 struct sys_info {
     unsigned int uptime_ms;
     unsigned int total_memory_kb;
@@ -17,6 +26,18 @@ struct sys_info {
     unsigned int screen_height;
     unsigned int disk_total_kb;
     unsigned int disk_free_kb;
+
+    /* Live Sifar Adaptive Core policy. These values are observations, not
+     * controls: user processes cannot weaken kernel security invariants. */
+    unsigned int adaptive_generation;
+    unsigned int adaptive_mode;
+    unsigned int adaptive_runnable_threads;
+    unsigned int adaptive_free_memory_percent;
+    unsigned int adaptive_threat_score;
+    unsigned int adaptive_quantum_ticks;
+    unsigned int adaptive_background_ms;
+    unsigned int adaptive_network_limit_bytes;
+
     char         cpu[52];
     char         version[24];
 };
