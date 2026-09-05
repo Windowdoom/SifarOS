@@ -32,6 +32,7 @@ static uint32_t event_head;
 static uint32_t event_count;
 static uint64_t next_sequence;
 static uint8_t initialized;
+static uint8_t enforcing;
 
 void security_init(void)
 {
@@ -41,18 +42,41 @@ void security_init(void)
     event_count = 0;
     next_sequence = 1;
     initialized = 1;
+    enforcing = 0;
 }
 
-void security_event_record(enum security_event_type type, uint32_t pid,
-                           uint32_t code, enum security_response response)
+static struct sentinel_subject *subject_for(uint32_t pid, int create)
+{
+    struct sentinel_subject *free_slot = NULL;
+
+    if (pid == 0)
+        return NULL;
+
+    for (uint32_t i = 0; i < SUBJECT_COUNT; i++) {
+        if (subjects[i].pid == pid)
+            return &subjects[i];
+        if (subjects[i].pid && !proc_by_pid((int)subjects[i].pid)) {
+            subjects[i].pid = 0;
+            subjects[i].score = 0;
+        }
+        if (!subjects[i].pid && !free_slot)
+            free_slot = &subjects[i];
+    }
+
+    if (create && free_slot) {
+        free_slot->pid = pid;
+        free_slot->score = 0;
+        return free_slot;
+    }
+    return NULL;
+}
+
+static void event_store(enum security_event_type type, uint32_t pid,
+                        uint32_t code, enum security_response response)
 {
     struct security_event *event;
-    uint32_t flags;
+    uint32_t flags = irq_save();
 
-    if (!initialized)
-        security_init();
-
-    flags = irq_save();
     event = &events[event_head];
     event->sequence = next_sequence++;
     event->timestamp_ms = timer_ms();
@@ -67,26 +91,30 @@ void security_event_record(enum security_event_type type, uint32_t pid,
     irq_restore(flags);
 }
 
-static struct sentinel_subject *subject_for(uint32_t pid, int create)
+void security_event_record(enum security_event_type type, uint32_t pid,
+                           uint32_t code, enum security_response response)
 {
-    struct sentinel_subject *free_slot = NULL;
+    struct process *current;
 
-    if (pid == 0)
-        return NULL;
+    if (!initialized)
+        security_init();
 
-    for (uint32_t i = 0; i < SUBJECT_COUNT; i++) {
-        if (subjects[i].pid == pid)
-            return &subjects[i];
-        if (!subjects[i].pid && !free_slot)
-            free_slot = &subjects[i];
+    /* Existing syscall/capability denial sites already report a suspicious
+     * event. Upgrade those calls into the active policy when they describe the
+     * current user process. The enforcing guard avoids recursion when the
+     * policy stores its final escalated event. */
+    current = proc_current();
+    if (!enforcing && response == SECURITY_RESPONSE_SUSPICIOUS && current &&
+        current != proc_kernel() && pid == (uint32_t)current->pid &&
+        (type == SECURITY_EVENT_SYSCALL_VIOLATION ||
+         type == SECURITY_EVENT_CAPABILITY_DENIED)) {
+        enforcing = 1;
+        (void)security_syscall_violation(code);
+        enforcing = 0;
+        return;
     }
 
-    if (create && free_slot) {
-        free_slot->pid = pid;
-        free_slot->score = 0;
-        return free_slot;
-    }
-    return NULL;
+    event_store(type, pid, code, response);
 }
 
 uint32_t security_process_score(uint32_t pid)
@@ -130,9 +158,12 @@ enum security_response security_syscall_violation(uint32_t code)
     uint32_t score;
     uint32_t flags;
 
+    if (!initialized)
+        security_init();
+
     if (!proc || proc == proc_kernel()) {
-        security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION, 0, code,
-                              SECURITY_RESPONSE_SUSPICIOUS);
+        event_store(SECURITY_EVENT_SYSCALL_VIOLATION, 0, code,
+                    SECURITY_RESPONSE_SUSPICIOUS);
         return SECURITY_RESPONSE_SUSPICIOUS;
     }
 
@@ -140,8 +171,8 @@ enum security_response security_syscall_violation(uint32_t code)
     subject = subject_for((uint32_t)proc->pid, 1);
     if (!subject) {
         irq_restore(flags);
-        security_event_record(SECURITY_EVENT_RESOURCE_ABUSE, (uint32_t)proc->pid,
-                              code, SECURITY_RESPONSE_ISOLATE);
+        event_store(SECURITY_EVENT_RESOURCE_ABUSE, (uint32_t)proc->pid,
+                    code, SECURITY_RESPONSE_ISOLATE);
         proc_revoke_caps(proc->pid, PROC_CAP_ALL);
         return SECURITY_RESPONSE_ISOLATE;
     }
@@ -164,8 +195,8 @@ enum security_response security_syscall_violation(uint32_t code)
     else if (response >= SECURITY_RESPONSE_ISOLATE)
         proc_revoke_caps(proc->pid, PROC_CAP_ALL);
 
-    security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,
-                          (uint32_t)proc->pid, code, response);
+    event_store(SECURITY_EVENT_SYSCALL_VIOLATION,
+                (uint32_t)proc->pid, code, response);
 
     if (response == SECURITY_RESPONSE_KILL)
         proc_exit(-126);
