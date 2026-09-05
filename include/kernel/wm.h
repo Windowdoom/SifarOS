@@ -6,7 +6,7 @@
 #include <sys/gui.h>
 
 /* Chrome dimensions, also used by the toolkit when it lays out a window. */
-#define WM_TITLE_HEIGHT 26
+#define WM_TITLE_HEIGHT 36
 #define WM_BORDER       1
 #define WM_EVENT_QUEUE  32
 

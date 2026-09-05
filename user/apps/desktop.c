@@ -9,12 +9,12 @@
  */
 #include "ui.h"
 
-#define TASKBAR_HEIGHT 40
-#define ICON_SIZE 48
-#define ICON_CELL_W 96
-#define ICON_CELL_H 92
+#define TASKBAR_HEIGHT 48
+#define ICON_SIZE 44
+#define ICON_CELL_W 104
+#define ICON_CELL_H 88
 #define MAX_APPS 24
-#define MENU_WIDTH 220
+#define MENU_WIDTH 280
 
 struct app_entry {
   char name[SYS_NAME_MAX];
@@ -32,9 +32,9 @@ static int screen_w, screen_h;
 #define CONFIG_PATH "/etc/desktop.conf"
 
 static const uint32_t theme_colors[][2] = {
-    {0xFF141E34, 0xFF2A3E62}, {0xFF1C2026, 0xFF39424E},
-    {0xFF12241A, 0xFF265038}, {0xFF241428, 0xFF4A2A54},
-    {0xFF2A1810, 0xFF5A2E18},
+    {0xFF070C16, 0xFF17233D}, {0xFF0B0F16, 0xFF252E3C},
+    {0xFF07150F, 0xFF123827}, {0xFF130A1A, 0xFF39224D},
+    {0xFF190D08, 0xFF4A2418},
 };
 
 static int theme;
@@ -84,12 +84,13 @@ enum {
   ICON_SETTINGS,
   ICON_CLOCK,
   ICON_GAME,
+  ICON_BROWSER,
   ICON_TEXT
 };
 
 static const struct known known_apps[] = {
     {"terminal", "Terminal", ICON_TERMINAL},
-    {"browser", "Sifar Browser", ICON_TEXT},
+    {"browser", "Sifar Web", ICON_BROWSER},
     {"files", "Files", ICON_FILES},
     {"editor", "Text Editor", ICON_EDITOR},
     {"paint", "Paint", ICON_PAINT},
@@ -218,6 +219,19 @@ static void draw_icon(ui_window *w, int x, int y, int size, int kind) {
       ui_round_fill(w, x + unit + i * unit * 2, y + size / 2 - unit,
                     unit * 2 - 2, unit * 2 - 2, 2, UI_RGB(0x90, 0xE0, 0xA0));
     break;
+  case ICON_BROWSER:
+    ui_circle(w, x + size / 2, y + size / 2, size / 2 - 1, UI_ACCENT);
+    ui_circle(w, x + size / 2, y + size / 2, size / 2 - 5,
+              UI_RGB(0x0E, 0x16, 0x26));
+    ui_line(w, x + 5, y + size / 2, x + size - 6, y + size / 2,
+            UI_ACCENT_LIGHT);
+    ui_line(w, x + size / 2, y + 5, x + size / 2, y + size - 6,
+            UI_ACCENT_LIGHT);
+    ui_circle(w, x + size / 2, y + size / 2, size / 4,
+              UI_RGB(0x4F, 0x7D, 0xF3));
+    ui_circle(w, x + size / 2, y + size / 2, size / 4 - 2,
+              UI_RGB(0x0E, 0x16, 0x26));
+    break;
   case ICON_TEXT:
     ui_round_fill(w, x + unit, y, size - unit * 2, size, 3,
                   UI_RGB(0xDCE, 0xE4, 0xF0));
@@ -241,36 +255,40 @@ static void draw_wallpaper(ui_window *w) {
   ui_gradient(w, 0, 0, w->width, w->height, theme_colors[theme][0],
               theme_colors[theme][1]);
 
-  /* A faint grid, just enough texture to not look flat. */
+  /* Broad light fields create depth without expensive blur. */
+  ui_blend(w, w->width / 2, 0, w->width / 2, w->height / 2,
+           UI_RGBA(0x4F, 0x7D, 0xF3, 10));
+  ui_blend(w, w->width * 2 / 3, w->height / 3, w->width / 3, w->height / 2,
+           UI_RGBA(0x78, 0xA1, 0xFF, 7));
+
   if (show_grid) {
-    for (int x = 0; x < w->width; x += 48)
-      ui_blend(w, x, 0, 1, w->height, UI_RGBA(0xFF, 0xFF, 0xFF, 6));
-    for (int y = 0; y < w->height; y += 48)
-      ui_blend(w, 0, y, w->width, 1, UI_RGBA(0xFF, 0xFF, 0xFF, 6));
+    for (int x = 0; x < w->width; x += 64)
+      ui_blend(w, x, 0, 1, w->height, UI_RGBA(0xFF, 0xFF, 0xFF, 4));
+    for (int y = 0; y < w->height; y += 64)
+      ui_blend(w, 0, y, w->width, 1, UI_RGBA(0xFF, 0xFF, 0xFF, 4));
   }
 
-  /* Wordmark in the lower right. */
-  ui_text_scaled(w, w->width - 260, w->height - 150, "SifarOS",
-                 UI_RGBA(0xFF, 0xFF, 0xFF, 40), 4);
-  ui_text(w, w->width - 260, w->height - 100,
-          "built from scratch, boot sector to desktop",
-          UI_RGBA(0xFF, 0xFF, 0xFF, 30));
+  ui_text_scaled(w, w->width - 232, w->height - 122, "SIFAR",
+                 UI_RGBA(0xFF, 0xFF, 0xFF, 46), 3);
+  ui_text(w, w->width - 232, w->height - 72, "OS 2.0  /  adaptive by design",
+          UI_RGBA(0xFF, 0xFF, 0xFF, 48));
 
-  /* Application icons down the left hand side. */
   for (int i = 0; i < app_count; i++) {
     int column = i / 6;
     int row = i % 6;
     int x = 24 + column * ICON_CELL_W;
     int y = 24 + row * ICON_CELL_H;
+    int hover = ui_hit(w, x - 8, y - 6, ICON_CELL_W - 16, ICON_CELL_H - 10);
 
-    if (i == selected_icon)
-      ui_blend(w, x - 8, y - 6, ICON_CELL_W - 16, ICON_CELL_H - 16,
-               UI_RGBA(0x60, 0xA0, 0xF0, 60));
+    if (i == selected_icon || hover)
+      ui_round_fill(w, x - 8, y - 6, ICON_CELL_W - 16, ICON_CELL_H - 10, 10,
+                    i == selected_icon ? UI_RGBA(0x4F, 0x7D, 0xF3, 72)
+                                       : UI_RGBA(0xFF, 0xFF, 0xFF, 20));
 
     draw_icon(w, x + (ICON_CELL_W - 32 - ICON_SIZE) / 2, y, ICON_SIZE,
               apps[i].icon);
     ui_text_center(w, x - 8, y + ICON_SIZE + 8, ICON_CELL_W - 16, apps[i].label,
-                   UI_WHITE);
+                   i == selected_icon ? UI_WHITE : UI_TEXT);
   }
 }
 
@@ -281,26 +299,25 @@ static int launcher_open;
 static void draw_taskbar(ui_window *w, struct gui_window_desc *windows,
                          int count) {
   struct sys_time now;
-  char clock[32];
+  char clock[24];
   struct sys_info info;
   char memory[40];
-  int x = 8;
+  int x = 10;
 
-  ui_gradient(w, 0, 0, w->width, w->height, UI_RGB(0x22, 0x2C, 0x3E),
-              UI_RGB(0x16, 0x1E, 0x2C));
-  ui_fill(w, 0, 0, w->width, 1, UI_RGB(0x3C, 0x4A, 0x64));
+  ui_gradient(w, 0, 0, w->width, w->height, UI_RGB(0x0D, 0x14, 0x22),
+              UI_RGB(0x08, 0x0D, 0x18));
+  ui_fill(w, 0, 0, w->width, 1, UI_BORDER);
 
-  /* Launcher button */
   {
-    int width = 104;
-    int hover = ui_hit(w, x, 5, width, TASKBAR_HEIGHT - 10);
+    int width = 98;
+    int hover = ui_hit(w, x, 7, width, TASKBAR_HEIGHT - 14);
+    uint32_t face =
+        launcher_open ? UI_ACCENT : (hover ? UI_PANEL_LIGHT : UI_SURFACE_ALT);
 
-    ui_round_fill(w, x, 5, width, TASKBAR_HEIGHT - 10, 5,
-                  launcher_open ? UI_ACCENT
-                                : (hover ? UI_PANEL_LIGHT : UI_PANEL));
-    ui_text(w, x + 12, 13, "SifarOS", UI_WHITE);
-    for (int i = 0; i < 3; i++)
-      ui_fill(w, x + 82, 13 + i * 5, 12, 2, UI_TEXT);
+    ui_round_fill(w, x, 7, width, TASKBAR_HEIGHT - 14, 10, face);
+    ui_circle(w, x + 18, 24, 8, launcher_open ? UI_WHITE : UI_ACCENT);
+    ui_text(w, x + 14, 16, "S", launcher_open ? UI_ACCENT : UI_WHITE);
+    ui_text(w, x + 34, 16, "Sifar", UI_WHITE);
 
     if (hover && w->mouse_pressed) {
       launcher_open = !launcher_open;
@@ -309,22 +326,23 @@ static void draw_taskbar(ui_window *w, struct gui_window_desc *windows,
     x += width + 10;
   }
 
-  /* One button per window */
   for (int i = 0; i < count; i++) {
-    int width = 150;
-    int hover = ui_hit(w, x, 6, width, TASKBAR_HEIGHT - 12);
+    int width = 138;
+    int hover = ui_hit(w, x, 7, width, TASKBAR_HEIGHT - 14);
     uint32_t face =
         windows[i].focused
             ? UI_ACCENT
-            : (windows[i].state == GUI_STATE_MINIMIZED ? UI_SURFACE : UI_PANEL);
+            : (windows[i].state == GUI_STATE_MINIMIZED ? UI_BG
+                                                       : UI_SURFACE_ALT);
 
-    if (x + width > w->width - 200)
+    if (x + width > w->width - 230)
       break;
 
-    ui_round_fill(w, x, 6, width, TASKBAR_HEIGHT - 12, 4,
-                  hover ? UI_PANEL_LIGHT : face);
-    ui_clip_set(w, x + 6, 6, width - 12, TASKBAR_HEIGHT - 12);
-    ui_text(w, x + 10, 14, windows[i].title, UI_TEXT);
+    ui_round_fill(w, x, 7, width, TASKBAR_HEIGHT - 14, 10,
+                  hover && !windows[i].focused ? UI_PANEL_LIGHT : face);
+    ui_clip_set(w, x + 10, 7, width - 20, TASKBAR_HEIGHT - 14);
+    ui_text(w, x + 12, 16, windows[i].title,
+            windows[i].focused ? UI_WHITE : UI_TEXT);
     ui_clip_reset(w);
 
     if (hover && w->mouse_pressed) {
@@ -334,40 +352,44 @@ static void draw_taskbar(ui_window *w, struct gui_window_desc *windows,
         syscall3(SYS_GUI_ACTIVATE, (int)windows[i].id, 0, 0);
       w->dirty = 1;
     }
-    x += width + 6;
+    x += width + 7;
   }
 
-  /* Clock and memory on the right */
-  if (system_time(&now) == 0) {
-    snprintf(clock, sizeof(clock), "%02d:%02d:%02d", (int)now.hour,
-             (int)now.minute, (int)now.second);
-    ui_text_scaled(w, w->width - 96, 12, clock, UI_WHITE, 1);
-  }
   if (system_info(&info) == 0) {
     snprintf(memory, sizeof(memory), "%d MiB free",
              (int)((info.total_memory_kb - info.used_memory_kb) / 1024));
-    ui_text(w, w->width - 260, 14, memory, UI_TEXT_DIM);
+    ui_round_fill(w, w->width - 224, 8, 116, TASKBAR_HEIGHT - 16, 9,
+                  UI_SURFACE_ALT);
+    ui_text_center(w, w->width - 224, 16, 116, memory, UI_TEXT_DIM);
+  }
+  if (system_time(&now) == 0) {
+    snprintf(clock, sizeof(clock), "%02d:%02d", (int)now.hour, (int)now.minute);
+    ui_text(w, w->width - 88, 16, clock, UI_WHITE);
   }
 }
 
 /* ---------------------------------------------------------------- launcher */
 
 static void draw_launcher(ui_window *w, int *launch_index) {
-  ui_round_fill(w, 0, 0, w->width, w->height, 8, UI_PANEL);
+  ui_round_fill(w, 0, 0, w->width, w->height, 12, UI_PANEL);
   ui_frame(w, 0, 0, w->width, w->height, UI_BORDER);
-  ui_text(w, 14, 12, "Applications", UI_TEXT_DIM);
-  ui_fill(w, 12, 32, w->width - 24, 1, UI_BORDER);
+
+  ui_circle(w, 24, 24, 10, UI_ACCENT);
+  ui_text(w, 20, 16, "S", UI_WHITE);
+  ui_text(w, 44, 10, "Sifar", UI_WHITE);
+  ui_text(w, 44, 27, "Applications", UI_TEXT_DIM);
+  ui_fill(w, 14, 48, w->width - 28, 1, UI_BORDER);
 
   for (int i = 0; i < app_count; i++) {
-    int y = 42 + i * 34;
-    int hover = ui_hit(w, 8, y, w->width - 16, 32);
+    int y = 56 + i * 34;
+    int hover = ui_hit(w, 10, y, w->width - 20, 30);
 
-    if (y + 32 > w->height)
+    if (y + 30 > w->height)
       break;
     if (hover)
-      ui_round_fill(w, 8, y, w->width - 16, 32, 4, UI_ACCENT);
-    draw_icon(w, 14, y + 4, 24, apps[i].icon);
-    ui_text(w, 48, y + 8, apps[i].label, UI_TEXT);
+      ui_round_fill(w, 10, y, w->width - 20, 30, 8, UI_SURFACE_ALT);
+    draw_icon(w, 16, y + 3, 24, apps[i].icon);
+    ui_text(w, 50, y + 7, apps[i].label, UI_TEXT);
 
     if (hover && w->mouse_pressed)
       *launch_index = i;
@@ -459,7 +481,7 @@ int main(int argc, char **argv) {
 
     /* ---- launcher menu ---- */
     if (launcher_open && !launcher) {
-      int height = 52 + app_count * 34;
+      int height = 62 + app_count * 34;
 
       launcher = ui_window_open("launcher", MENU_WIDTH, height,
                                 GUI_TOP | GUI_NODECOR | GUI_NOTASKBAR);

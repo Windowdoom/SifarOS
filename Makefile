@@ -79,7 +79,7 @@ LIB_OBJECTS := $(USER_LIB)/crt0.o $(USER_LIB)/sifar.o $(USER_LIB)/ui.o
 FS_CONTENT := \
 	$(foreach app,$(APPS),--exec $(USER_DIR)/$(app).elf:/apps/$(app)) \
 	--protected '/etc/motd:Welcome to SifarOS.\n' \
-	--protected '/etc/release:SifarOS 0.2.0 (i386)\n' \
+	--protected '/etc/release:SifarOS 2.0.0 (i386)\n' \
 	--text '/home/readme.txt:This file lives on the disk and survives a reboot.\n\nOpen it in the text editor, change it, and it will still be here\nafter the next boot.\n' \
 	--text '/docs/about.txt:SifarOS was written from scratch: bootloader, kernel, drivers,\nfilesystem, window system and every application you can see.\n'
 
