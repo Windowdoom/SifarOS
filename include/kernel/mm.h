@@ -18,30 +18,39 @@ uint32_t    pmm_used_frames(void);
 uint32_t    pmm_free_frames(void);
 uint64_t    pmm_total_bytes(void);
 
-/* ---- paging ---- */
-#define PTE_PRESENT 0x001
-#define PTE_WRITE   0x002
-#define PTE_USER    0x004
-#define PTE_ACCESSED 0x020
-#define PTE_DIRTY   0x040
+/* ---- paging ----
+ *
+ * PTE_EXEC is a SifarOS mapping request bit, not a hardware bit. With PAE/NX
+ * enabled, mappings are non-executable unless PTE_EXEC is explicitly present.
+ * W+X mappings are rejected by the VMM.
+ */
+#define PTE_PRESENT  0x001u
+#define PTE_WRITE    0x002u
+#define PTE_USER     0x004u
+#define PTE_ACCESSED 0x020u
+#define PTE_DIRTY    0x040u
+#define PTE_EXEC     0x200u
 
 /*
  * Address spaces.
  *
- * Every process gets its own page directory.  The kernel half (the identity
- * map, the heap window and the framebuffer) is described by page tables that
- * are allocated once at boot and shared into every directory, so a kernel
- * mapping made later is visible to every process without any bookkeeping.
+ * SifarOS 2.0 uses 32-bit PAE paging: a four-entry PDPT points at four
+ * 512-entry page directories, which in turn point at 512-entry 64-bit page
+ * tables. The low 1 GiB kernel identity map is shared. The top 768 MiB kernel
+ * region shares page tables, while the user slice in the first quarter of
+ * PDPT slot 3 remains process-private.
  */
-#define USER_MIN        0x40000000u
-#define USER_MAX        0xD0000000u
+#define USER_MIN         0x40000000u
+#define USER_MAX         0xD0000000u
 #define KERNEL_HEAP_BASE 0xD0000000u
 #define KERNEL_HEAP_MAX  0xD4000000u
 #define KERNEL_FB_BASE   0xE0000000u
 
 struct addr_space {
-    uint32_t   *pd;             /* page directory, identity mapped */
-    phys_addr_t pd_phys;
+    uint64_t   *pdpt;             /* 4 entries; frame is 4 KiB aligned */
+    phys_addr_t pdpt_phys;
+    uint64_t   *pd[4];            /* one 4 KiB page directory per GiB */
+    phys_addr_t pd_phys[4];
 };
 
 void      paging_init(void);
