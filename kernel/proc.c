@@ -3,8 +3,9 @@
  *
  * A process owns an address space, a heap and one or more threads.  The
  * kernel itself is process 0 and keeps the kernel address space; everything
- * loaded from disk gets a private one.  Cross-process control is restricted
- * to the kernel or the direct parent until the capability model lands.
+ * loaded from disk gets a private one. Cross-process control is denied unless
+ * the caller is the direct parent or holds an explicit kernel-granted
+ * capability.
  */
 #include <kernel/proc.h>
 #include <kernel/elf.h>
@@ -61,6 +62,23 @@ void proc_foreach(void (*fn)(const struct process *, void *), void *ctx)
     for (int i = 0; i < MAX_PROCESSES; i++)
         if (table[i].state != PROC_FREE)
             fn(&table[i], ctx);
+}
+
+int proc_grant_caps(int pid, uint32_t caps)
+{
+    struct process *proc = proc_by_pid(pid);
+
+    if (!proc)
+        return -1;
+    proc->capabilities |= caps;
+    return 0;
+}
+
+int proc_has_cap(const struct process *proc, uint32_t cap)
+{
+    if (proc == kernel_process)
+        return 1;
+    return proc && (proc->capabilities & cap) == cap;
 }
 
 void proc_init(void)
@@ -420,7 +438,8 @@ int proc_kill(int pid)
 
     if (!proc || proc == kernel_process || proc == caller)
         return -1;
-    if (caller != kernel_process && proc->parent != caller->pid) {
+    if (!proc_has_cap(caller, PROC_CAP_PROCESS_CONTROL) &&
+        proc->parent != caller->pid) {
         security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,
                               caller ? (uint32_t)caller->pid : 0,
                               SYS_KILL, SECURITY_RESPONSE_SUSPICIOUS);
