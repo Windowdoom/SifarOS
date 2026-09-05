@@ -1,14 +1,17 @@
 /*
  * ATA (IDE) driver, PIO mode, primary bus master drive.
  *
- * Polled rather than interrupt driven: the disk is only touched by the
- * filesystem, always from a thread that can afford to wait, and polling keeps
- * the driver small enough to reason about.
+ * Polled rather than interrupt driven. Early boot runs before scheduler/IRQ
+ * timekeeping is live, so waits use a conservative bounded spin budget then.
+ * Once scheduling is active they use a real millisecond timeout and yield
+ * periodically instead of monopolising the CPU.
  */
 #include <kernel/blockdev.h>
 #include <kernel/kprintf.h>
 #include <kernel/string.h>
 #include <kernel/io.h>
+#include <kernel/sched.h>
+#include <arch/x86.h>
 
 #define ATA_DATA        0x1F0
 #define ATA_ERROR       0x1F1
@@ -33,6 +36,10 @@
 #define CMD_FLUSH       0xE7
 #define CMD_IDENTIFY    0xEC
 
+#define ATA_TIMEOUT_MS        3000u
+#define ATA_EARLY_SPIN_LIMIT  4000000u
+#define ATA_YIELD_INTERVAL    1024u
+
 static struct blockdev device;
 static char            model[41];
 static int             present;
@@ -43,34 +50,50 @@ static void delay400(void)
         (void)inb(ATA_CONTROL);
 }
 
-static int wait_ready(void)
+/* Return 0 when the requested state arrives, -1 for controller error and -2
+ * for timeout. `need_drq` selects whether READY alone is sufficient. */
+static int wait_status(int need_drq)
 {
-    for (int spin = 0; spin < 4000000; spin++) {
+    uint64_t started = timer_ms();
+    uint32_t spins = 0;
+
+    for (;;) {
         uint8_t status = inb(ATA_STATUS);
 
-        if (status & STATUS_BUSY)
-            continue;
         if (status & (STATUS_ERR | STATUS_DF))
             return -1;
-        if (status & STATUS_DRQ)
-            return 0;
-        if (status & STATUS_READY)
-            return 0;
+        if (!(status & STATUS_BUSY)) {
+            if (status & STATUS_DRQ)
+                return 0;
+            if (!need_drq && (status & STATUS_READY))
+                return 0;
+        }
+
+        spins++;
+        if (sched_enabled()) {
+            if (timer_ms() - started >= ATA_TIMEOUT_MS)
+                return -2;
+            if ((spins % ATA_YIELD_INTERVAL) == 0)
+                sched_yield();
+        } else {
+            /* Timer interrupts are not enabled during ATA discovery, so a
+             * wall-clock timeout cannot advance yet. Keep early boot bounded. */
+            if (spins >= ATA_EARLY_SPIN_LIMIT)
+                return -2;
+            if ((spins % ATA_YIELD_INTERVAL) == 0)
+                io_wait();
+        }
     }
-    return -1;
+}
+
+static int wait_ready(void)
+{
+    return wait_status(0);
 }
 
 static int wait_drq(void)
 {
-    for (int spin = 0; spin < 4000000; spin++) {
-        uint8_t status = inb(ATA_STATUS);
-
-        if (status & (STATUS_ERR | STATUS_DF))
-            return -1;
-        if (!(status & STATUS_BUSY) && (status & STATUS_DRQ))
-            return 0;
-    }
-    return -1;
+    return wait_status(1);
 }
 
 /* Select the drive and program an LBA28 request. */
@@ -84,12 +107,18 @@ static void select_lba(uint32_t lba, uint8_t count)
     outb(ATA_LBA_HIGH, (uint8_t)((lba >> 16) & 0xFF));
 }
 
+static int request_in_range(const struct blockdev *dev, uint32_t lba, uint32_t count)
+{
+    if (!dev || !count || lba >= dev->sectors)
+        return 0;
+    return count <= dev->sectors - lba;
+}
+
 static int ata_read_sectors(struct blockdev *dev, uint32_t lba, uint32_t count, void *buffer)
 {
     uint16_t *out = (uint16_t *)buffer;
 
-    (void)dev;
-    if (!present || count == 0)
+    if (!present || !buffer || !request_in_range(dev, lba, count))
         return -1;
 
     while (count) {
@@ -97,7 +126,7 @@ static int ata_read_sectors(struct blockdev *dev, uint32_t lba, uint32_t count, 
 
         if (wait_ready() < 0)
             return -1;
-        select_lba(lba, (uint8_t)(chunk == 256 ? 0 : chunk));
+        select_lba(lba, (uint8_t)chunk);
         outb(ATA_COMMAND, CMD_READ_PIO);
         delay400();
 
@@ -120,8 +149,7 @@ static int ata_write_sectors(struct blockdev *dev, uint32_t lba, uint32_t count,
 {
     const uint16_t *in = (const uint16_t *)buffer;
 
-    (void)dev;
-    if (!present || count == 0)
+    if (!present || !buffer || !request_in_range(dev, lba, count))
         return -1;
 
     while (count) {
@@ -203,7 +231,7 @@ int ata_init(void)
     device.read    = ata_read_sectors;
     device.write   = ata_write_sectors;
     device.context = NULL;
-    present = 1;
+    present = device.sectors != 0;
 
-    return 0;
+    return present ? 0 : -1;
 }
