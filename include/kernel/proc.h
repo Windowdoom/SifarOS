@@ -52,8 +52,9 @@ void proc_reap(void);           /* release finished processes, runs on idle */
 /* Grow or shrink the current process heap; returns the previous break. */
 virt_addr_t proc_sbrk(int32_t increment);
 
-/* Pointer checking for syscalls: is this range inside the caller's memory? */
-int  proc_user_range_ok(const void *ptr, size_t len);
+/* Pointer checking for syscalls. */
+int  proc_user_range_ok(const void *ptr, size_t len);       /* kernel reads */
+int  proc_user_write_ok(void *ptr, size_t len);             /* kernel writes */
 int  proc_copy_user_string(const char *user, char *out, size_t size);
 
 void syscall_init(void);
