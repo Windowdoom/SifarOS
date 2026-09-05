@@ -1,10 +1,14 @@
 /*
  * Round-robin preemptive scheduler.
  *
- * Every thread owns a kernel stack allocated from the heap.  The timer IRQ
+ * Every thread owns a kernel stack allocated from the heap. The timer IRQ
  * marks the running thread for preemption; the actual switch happens at the
  * tail of interrupt dispatch, after the interrupt controller has been
  * acknowledged, so the next thread starts life with a clean interrupt state.
+ *
+ * Sifar Adaptive Core may tune the round-robin quantum at runtime. The
+ * scheduler itself enforces hard bounds so policy cannot accidentally turn
+ * adaptation into starvation or pathological context-switch churn.
  */
 #include <kernel/sched.h>
 #include <kernel/mm.h>
@@ -14,9 +18,11 @@
 #include <arch/x86.h>
 #include <kernel/proc.h>
 
-#define STACK_SIZE      (32 * KB)
-#define STACK_GUARD     0x5A11B0DEu     /* sits at the low end of every stack */
-#define QUANTUM_TICKS   5           /* 50 ms at 100 Hz */
+#define STACK_SIZE       (32 * KB)
+#define STACK_GUARD      0x5A11B0DEu
+#define QUANTUM_DEFAULT  5u
+#define QUANTUM_MIN      1u
+#define QUANTUM_MAX      12u
 
 extern void context_switch(uint32_t *save_esp, uint32_t new_esp);
 extern void thread_trampoline(void);
@@ -27,13 +33,9 @@ static struct thread  boot_thread;
 static int            next_tid = 1;
 static int            running;
 static int            need_resched;
-static int            slice_left = QUANTUM_TICKS;
+static uint32_t       quantum_ticks = QUANTUM_DEFAULT;
+static int            slice_left = (int)QUANTUM_DEFAULT;
 
-/*
- * Exit codes outlive the threads that produced them: the idle task reaps
- * finished threads eagerly, so join() has to be able to answer for a thread
- * whose memory is already gone.
- */
 #define EXIT_HISTORY 32
 static struct { int tid; int code; } exit_history[EXIT_HISTORY];
 static int exit_history_next;
@@ -97,6 +99,27 @@ void sched_foreach(void (*fn)(const struct thread *, void *), void *ctx)
     }
 }
 
+void sched_set_quantum_ticks(uint32_t ticks)
+{
+    uint32_t flags;
+
+    if (ticks < QUANTUM_MIN)
+        ticks = QUANTUM_MIN;
+    if (ticks > QUANTUM_MAX)
+        ticks = QUANTUM_MAX;
+
+    flags = irq_save();
+    quantum_ticks = ticks;
+    if (slice_left > (int)ticks)
+        slice_left = (int)ticks;
+    irq_restore(flags);
+}
+
+uint32_t sched_quantum_ticks(void)
+{
+    return quantum_ticks;
+}
+
 /* The kernel's initial control flow becomes thread 0. */
 void sched_init(void)
 {
@@ -113,16 +136,18 @@ void sched_init(void)
     strlcpy(boot_thread.name, "kernel", THREAD_NAME_MAX);
 
     threads[0] = &boot_thread;
-    current    = &boot_thread;
-    running    = 1;
+    current = &boot_thread;
+    quantum_ticks = QUANTUM_DEFAULT;
+    slice_left = (int)quantum_ticks;
+    running = 1;
 }
 
 int thread_create(const char *name, thread_entry_t entry, void *arg)
 {
     struct thread *t;
-    uint32_t      *sp;
-    uint32_t       flags;
-    int            slot = -1;
+    uint32_t *sp;
+    uint32_t flags;
+    int slot = -1;
 
     flags = irq_save();
     for (int i = 0; i < MAX_THREADS; i++) {
@@ -149,7 +174,6 @@ int thread_create(const char *name, thread_entry_t entry, void *arg)
     t->stack_size = STACK_SIZE;
     *(uint32_t *)t->stack_base = STACK_GUARD;
 
-    /* FXSAVE needs a 16 byte aligned destination. */
     {
         uint8_t *raw = (uint8_t *)kmalloc(512 + 16);
 
@@ -161,21 +185,20 @@ int thread_create(const char *name, thread_entry_t entry, void *arg)
         t->fpu_state = (void *)ALIGN_UP((uintptr_t)raw, 16);
         fpu_new_state(t->fpu_state);
     }
-    t->tid        = next_tid++;
-    t->state      = THREAD_READY;
-    t->detached   = 1;
-    t->space      = current ? current->space : vmm_kernel_space();
-    t->proc       = NULL;
+    t->tid = next_tid++;
+    t->state = THREAD_READY;
+    t->detached = 1;
+    t->space = current ? current->space : vmm_kernel_space();
+    t->proc = NULL;
     strlcpy(t->name, name, THREAD_NAME_MAX);
 
-    /* Seed the stack so the first context_switch() lands in the trampoline. */
     sp = (uint32_t *)(t->stack_base + STACK_SIZE);
-    *--sp = (uint32_t)thread_trampoline;    /* ret target */
-    *--sp = 0;                              /* ebp */
-    *--sp = 0;                              /* ebx */
-    *--sp = (uint32_t)entry;                /* esi */
-    *--sp = (uint32_t)arg;                  /* edi */
-    *--sp = 0x00000202;                     /* eflags: IF set */
+    *--sp = (uint32_t)thread_trampoline;
+    *--sp = 0;
+    *--sp = 0;
+    *--sp = (uint32_t)entry;
+    *--sp = (uint32_t)arg;
+    *--sp = 0x00000202;
     t->esp = (uint32_t)sp;
 
     flags = irq_save();
@@ -185,7 +208,6 @@ int thread_create(const char *name, thread_entry_t entry, void *arg)
     return t->tid;
 }
 
-/* Pick the next runnable thread, round robin from the current one. */
 static struct thread *pick_next(void)
 {
     int start = 0;
@@ -206,10 +228,9 @@ static struct thread *pick_next(void)
 
     if (current->state == THREAD_RUNNING || current->state == THREAD_READY)
         return current;
-    return threads[0];              /* fall back to the boot/idle thread */
+    return threads[0];
 }
 
-/* Must be called with interrupts disabled. */
 static void switch_to(struct thread *next)
 {
     struct thread *prev = current;
@@ -223,29 +244,20 @@ static void switch_to(struct thread *next)
     if (prev->state == THREAD_RUNNING)
         prev->state = THREAD_READY;
     next->state = THREAD_RUNNING;
-    current     = next;
-    slice_left  = QUANTUM_TICKS;
+    current = next;
+    slice_left = (int)quantum_ticks;
 
-    /*
-     * Catch a thread that has run off the bottom of its stack.  Silent stack
-     * overflow corrupts whatever heap block sits below and shows up much
-     * later as impossible behaviour somewhere else entirely.
-     */
     if (prev->stack_base && *(uint32_t *)prev->stack_base != STACK_GUARD)
         panic("thread %d (%s) overflowed its kernel stack", prev->tid, prev->name);
 
-    /* Floating point registers belong to the thread just like the rest. */
     if (prev->fpu_state)
         fpu_save(prev->fpu_state);
     if (next->fpu_state)
         fpu_restore(next->fpu_state);
 
-    /* Install the incoming thread's address space before its first
-       instruction runs; kernel threads keep the kernel space. */
     if (next->space && next->space != vmm_current_space())
         vmm_space_switch(next->space);
 
-    /* Interrupts from ring 3 land on this thread's kernel stack. */
     tss_set_kernel_stack(next->stack_base ?
                          next->stack_base + next->stack_size : 0);
 
@@ -265,7 +277,6 @@ void sched_yield(void)
     irq_restore(flags);
 }
 
-/* Timer IRQ: age the current slice and wake anyone whose sleep is over. */
 void sched_tick(void)
 {
     uint64_t now;
@@ -284,15 +295,11 @@ void sched_tick(void)
     }
 
     if (--slice_left <= 0) {
-        slice_left = QUANTUM_TICKS;
+        slice_left = (int)quantum_ticks;
         need_resched = 1;
     }
 }
 
-/*
- * Called at the very end of interrupt dispatch.  Switching here (rather than
- * inside the timer handler) keeps the EOI ordering correct.
- */
 void sched_preempt(void)
 {
     if (!running || !need_resched)
@@ -321,7 +328,6 @@ void thread_exit(int code)
 {
     cli();
 
-    /* If this was a process's main thread, the process is finished too. */
     if (current->proc) {
         struct process *proc = (struct process *)current->proc;
 
@@ -341,7 +347,7 @@ void thread_exit(int code)
 int thread_join(int tid)
 {
     for (;;) {
-        uint32_t       flags = irq_save();
+        uint32_t flags = irq_save();
         struct thread *found = NULL;
 
         for (int i = 0; i < MAX_THREADS; i++) {
@@ -356,10 +362,9 @@ int thread_join(int tid)
             int code = 0;
 
             recall_exit(tid, &code);
-            return code;            /* already finished and reaped */
+            return code;
         }
 
-        /* Claim the thread so the reaper cannot free it under us. */
         flags = irq_save();
         found->detached = 0;
         if (found->state == THREAD_ZOMBIE) {
@@ -392,7 +397,7 @@ int thread_exists(int tid)
 int thread_kill(int tid)
 {
     uint32_t flags = irq_save();
-    int      result = -1;
+    int result = -1;
 
     for (int i = 0; i < MAX_THREADS; i++) {
         struct thread *t = threads[i];
@@ -412,10 +417,6 @@ int thread_kill(int tid)
     return result;
 }
 
-/*
- * Free the stacks of threads that have finished.  Runs on the idle thread so
- * that no thread is ever freeing the stack it is standing on.
- */
 void sched_reap(void)
 {
     uint32_t flags = irq_save();
