@@ -26,3 +26,13 @@ jobs:
 
       - name: Run serial boot test suite
         run: make test
+
+      - name: Rebuild clean image for high-memory regression
+        run: make clean && make WERROR=0
+
+      - name: Run boot suite with 2 GiB guest RAM
+        env:
+          MEMORY: 2048
+          LOG: build/test-output-2g.log
+          LOG2: build/test-reboot-2g.log
+        run: make test
