@@ -100,27 +100,19 @@ static struct process *allocate(void)
 
 int proc_user_range_ok(const void *ptr, size_t len)
 {
-    uintptr_t addr = (uintptr_t)ptr;
     struct process *proc = proc_current();
 
-    if (len == 0)
-        return 1;
     if (proc == kernel_process)
         return 0;                   /* kernel threads have no user memory */
-    if (addr < USER_MIN || addr + len < addr || addr + len > USER_MAX)
-        return 0;
-
-    for (uintptr_t page = ALIGN_DOWN(addr, PAGE_SIZE); page < addr + len;
-         page += PAGE_SIZE) {
-        if (!vmm_translate_in(&proc->space, page))
-            return 0;
-    }
-    return 1;
+    return vmm_access_ok_in(&proc->space, (virt_addr_t)(uintptr_t)ptr, len, 0);
 }
 
 int proc_copy_user_string(const char *user, char *out, size_t size)
 {
-    for (size_t i = 0; i < size - 1; i++) {
+    if (!out || size == 0)
+        return -1;
+
+    for (size_t i = 0; i + 1 < size; i++) {
         if (!proc_user_range_ok(user + i, 1))
             return -1;
         out[i] = user[i];
@@ -142,22 +134,39 @@ virt_addr_t proc_sbrk(int32_t increment)
     previous = proc->brk;
 
     if (increment > 0) {
-        virt_addr_t target = proc->brk + (uint32_t)increment;
+        uint32_t amount = (uint32_t)increment;
+        virt_addr_t limit = proc->stack_top - (uint32_t)USER_STACK_PAGES * PAGE_SIZE;
+        virt_addr_t target;
+        uint32_t old_pages, new_pages;
 
-        if (target >= proc->stack_top - (uint32_t)USER_STACK_PAGES * PAGE_SIZE)
+        if (proc->brk > USER_MAX - amount)
+            return 0;
+        target = proc->brk + amount;
+        if (target >= limit)
             return 0;               /* would run into the stack */
-        if (vmm_alloc_range(&proc->space, proc->brk, (size_t)increment,
+        old_pages = (uint32_t)((ALIGN_UP(previous, PAGE_SIZE) -
+                                ALIGN_UP(proc->brk_start, PAGE_SIZE)) / PAGE_SIZE);
+        new_pages = (uint32_t)((ALIGN_UP(target, PAGE_SIZE) -
+                                ALIGN_UP(proc->brk_start, PAGE_SIZE)) / PAGE_SIZE);
+        if (vmm_alloc_range(&proc->space, proc->brk, (size_t)amount,
                             PTE_PRESENT | PTE_WRITE | PTE_USER) < 0)
             return 0;
         proc->brk = target;
-        proc->user_pages += (uint32_t)(ALIGN_UP(target, PAGE_SIZE) -
-                                       ALIGN_UP(previous, PAGE_SIZE)) / PAGE_SIZE;
+        proc->user_pages += new_pages - old_pages;
     } else if (increment < 0) {
-        uint32_t shrink = (uint32_t)(-increment);
+        uint32_t shrink = (uint32_t)(-(int64_t)increment);
+        virt_addr_t floor = proc->brk_start;
+        virt_addr_t target;
 
-        if (shrink > proc->brk - proc->brk_start)
-            shrink = proc->brk - proc->brk_start;
-        proc->brk -= shrink;
+        if (shrink > proc->brk - floor)
+            shrink = proc->brk - floor;
+        target = proc->brk - shrink;
+        vmm_free_range(&proc->space, ALIGN_UP(target, PAGE_SIZE),
+                       ALIGN_UP(proc->brk, PAGE_SIZE) - ALIGN_UP(target, PAGE_SIZE));
+        proc->brk = target;
+        proc->user_pages = (uint32_t)((ALIGN_UP(proc->brk, PAGE_SIZE) -
+                                       ALIGN_UP(proc->brk_start, PAGE_SIZE)) / PAGE_SIZE) +
+                           USER_STACK_PAGES;
     }
 
     return previous;
@@ -189,8 +198,11 @@ static int build_stack(struct process *proc, int argc, const char *const *argv,
     if (argc > 15)
         argc = 15;
 
-    for (int i = 0; i < argc; i++)
+    for (int i = 0; i < argc; i++) {
+        if (!argv[i])
+            return -1;
         strings_len += strlen(argv[i]) + 1;
+    }
 
     total = 4 + (size_t)(argc + 1) * 4 + strings_len;
     total = ALIGN_UP(total, 16);
