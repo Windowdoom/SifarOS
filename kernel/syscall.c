@@ -4,6 +4,7 @@
  * User programs trap in through int 0x80. Every pointer crossing the
  * privilege boundary is validated against the calling process's address
  * space. Kernel output pointers additionally require writable user pages.
+ * Cross-process and machine-control operations require explicit capabilities.
  */
 #include <kernel/types.h>
 #include <kernel/version.h>
@@ -30,9 +31,29 @@
     (proc_user_write_ok((void *)(uintptr_t)(ptr), sizeof(type)) ? \
      (type *)(uintptr_t)(ptr) : NULL)
 
+static void denied(uint32_t syscall_number)
+{
+    struct process *proc = proc_current();
+
+    security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,
+                          proc ? (uint32_t)proc->pid : 0,
+                          syscall_number, SECURITY_RESPONSE_SUSPICIOUS);
+}
+
+static int may_control_window(uint32_t id)
+{
+    struct process *proc = proc_current();
+    struct gui_window_info info;
+
+    if (proc_has_cap(proc, PROC_CAP_WINDOW_CONTROL))
+        return 1;
+    return wm_window_info(proc, id, &info) == 0;
+}
+
 static int32_t sys_write(uint32_t fd, uint32_t buf, uint32_t len)
 {
-    if (fd != 1 && fd != 2 || !proc_user_range_ok((const void *)(uintptr_t)buf, len))
+    if ((fd != 1 && fd != 2) ||
+        !proc_user_range_ok((const void *)(uintptr_t)buf, len))
         return -1;
     console_write((const char *)(uintptr_t)buf, len);
     return (int32_t)len;
@@ -258,11 +279,15 @@ static void syscall_handler(struct registers *regs)
     case SYS_GUI_POLL:result=sys_gui_poll(arg1,arg2);break;case SYS_GUI_WAIT:result=sys_gui_wait(arg1,arg2,arg3);break;case SYS_GUI_DESTROY:result=wm_destroy_window(proc_current(),arg1);break;
     case SYS_GUI_TITLE:{char title[GUI_MAX_TITLE];if(proc_copy_user_string((const char *)(uintptr_t)arg2,title,sizeof(title))<0)result=-1;else result=wm_set_title(proc_current(),arg1,title);break;}
     case SYS_GUI_MOVE:result=wm_move_window(proc_current(),arg1,(int)arg2,(int)arg3);break;case SYS_GUI_RESIZE:result=wm_resize_window(proc_current(),arg1,(int)arg2,(int)arg3);break;
-    case SYS_GUI_LIST:result=sys_gui_list(arg1,arg2);break;case SYS_GUI_ACTIVATE:result=wm_activate(arg1);break;case SYS_GUI_MINIMIZE:result=wm_minimize(arg1);break;case SYS_GUI_SCREEN:result=sys_gui_screen(arg1);break;case SYS_GUI_FLAGS:result=wm_set_flags(proc_current(),arg1,arg2);break;
+    case SYS_GUI_LIST:result=sys_gui_list(arg1,arg2);break;
+    case SYS_GUI_ACTIVATE:if(may_control_window(arg1))result=wm_activate(arg1);else{denied(number);result=-1;}break;
+    case SYS_GUI_MINIMIZE:if(may_control_window(arg1))result=wm_minimize(arg1);else{denied(number);result=-1;}break;
+    case SYS_GUI_SCREEN:result=sys_gui_screen(arg1);break;case SYS_GUI_FLAGS:result=wm_set_flags(proc_current(),arg1,arg2);break;
     case SYS_SYSINFO:result=sys_sysinfo(arg1);break;case SYS_PROCLIST:result=sys_proclist(arg1,arg2);break;case SYS_KILL:result=proc_kill((int)arg1);break;case SYS_LOG:result=sys_log(arg1,arg2);break;case SYS_TIME:result=sys_time(arg1);break;
-    case SYS_REBOOT:cpu_reboot();break;case SYS_SHUTDOWN:cpu_halt();break;
+    case SYS_REBOOT:if(proc_has_cap(proc_current(),PROC_CAP_SYSTEM_CONTROL))cpu_reboot();else{denied(number);result=-1;}break;
+    case SYS_SHUTDOWN:if(proc_has_cap(proc_current(),PROC_CAP_SYSTEM_CONTROL))cpu_halt();else{denied(number);result=-1;}break;
     case SYS_FONT:{void *out=(void *)(uintptr_t)arg1;if(arg2>4096)arg2=4096;if(!proc_user_write_ok(out,arg2)){result=-1;break;}memcpy(out,gfx_font(),arg2);result=(int32_t)arg2;break;}
-    default:security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,proc_current()->pid,number,SECURITY_RESPONSE_SUSPICIOUS);result=-1;break;}
+    default:denied(number);result=-1;break;}
     regs->eax=(uint32_t)result;
 }
 
