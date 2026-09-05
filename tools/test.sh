@@ -3,11 +3,11 @@
 #
 # This exercises the parts a screenshot cannot: the boot sequence, the disk
 # filesystem, process creation, fault isolation, the in-kernel test suite and
-# whether writes actually survive a reboot.  tools/test-gui.sh covers the
-# desktop.
+# whether writes actually survive a reboot. tools/test-gui.sh covers desktop.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+source tools/common.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
 QEMU=${QEMU:-qemu-system-i386}
@@ -39,7 +39,7 @@ run_session() {
             esac
         done
         sleep 2
-    } | timeout "$TIMEOUT" "$QEMU" \
+    } | run_limited "$TIMEOUT" "$QEMU" \
             -drive "format=raw,file=$IMAGE" \
             -m "$MEMORY" \
             -display none \
@@ -133,9 +133,9 @@ expect "release file reads back"        "SifarOS 0.2.0 \(i386\)"
 expect "system files are protected"     "rm: /etc/motd is read only"
 expect "files can be written and read"  "written by the test harness"
 expect "stat reports metadata"          "type     : file"
-expect "hexdump prints hex"             "00000000  77 72 69 74 74 65 6e"
-expect "files can be copied"            "copy.txt"
-expect "the window list works"          "cursor : "
+expect "hexdump prints hex"              "00000000  77 72 69 74 74 65 6e"
+expect "files can be copied"             "copy.txt"
+expect "the window list works"           "cursor : "
 expect "unknown commands are reported"  "nosuchcommand: command not found"
 
 echo
