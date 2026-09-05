@@ -27,6 +27,9 @@ jobs:
       - name: Run serial boot test suite
         run: make test
 
+      - name: Run corrupted SifarFS rejection tests
+        run: bash tools/test-sfs-corrupt.sh
+
       - name: Rebuild clean image for high-memory regression
         run: make clean && make WERROR=0
 
