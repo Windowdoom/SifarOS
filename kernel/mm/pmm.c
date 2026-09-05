@@ -4,7 +4,13 @@
  * The bitmap is parked immediately after the kernel image, and everything
  * below that (real mode IVT, BIOS data, the bootloader, the kernel itself)
  * stays permanently reserved.  Everything the BIOS reported as usable RAM
- * above the bitmap becomes allocatable.
+ * inside the kernel's direct map becomes allocatable.
+ *
+ * Important 32-bit invariant: kernel code currently dereferences physical
+ * frame addresses directly, so every frame returned by this allocator must
+ * also be identity mapped.  Until SifarOS grows a high-memory mapping window,
+ * cap managed RAM at USER_MIN (1 GiB) rather than handing callers frames the
+ * kernel cannot safely touch.
  */
 #include <kernel/mm.h>
 #include <kernel/kprintf.h>
@@ -19,8 +25,7 @@ static uint32_t  total_frames;
 static uint32_t  used_frames;
 static uint64_t  total_bytes;
 
-/* Highest physical address we are willing to manage (keeps the bitmap sane). */
-#define MAX_PHYS 0xFFFF0000ull
+#define PMM_DIRECT_MAP_LIMIT ((uint64_t)USER_MIN)
 
 static inline void bit_set(uint32_t frame)
 {
@@ -37,12 +42,28 @@ static inline int bit_test(uint32_t frame)
     return (bitmap[frame >> 5] >> (frame & 31)) & 1u;
 }
 
-static void mark_used(phys_addr_t base, uint64_t length)
+static void mark_used(uint64_t base, uint64_t length)
 {
-    uint32_t first = base >> PAGE_SHIFT;
-    uint32_t last  = (uint32_t)((base + length + PAGE_SIZE - 1) >> PAGE_SHIFT);
+    uint64_t first64;
+    uint64_t last64;
+    uint32_t first;
+    uint32_t last;
 
-    for (uint32_t f = first; f < last && f < total_frames; f++) {
+    if (!length || base >= PMM_DIRECT_MAP_LIMIT)
+        return;
+    if (length > UINT64_MAX - base)
+        length = UINT64_MAX - base;
+
+    first64 = base >> PAGE_SHIFT;
+    last64 = (base + length + PAGE_SIZE - 1) >> PAGE_SHIFT;
+    if (first64 >= total_frames)
+        return;
+    if (last64 > total_frames)
+        last64 = total_frames;
+
+    first = (uint32_t)first64;
+    last = (uint32_t)last64;
+    for (uint32_t f = first; f < last; f++) {
         if (!bit_test(f)) {
             bit_set(f);
             used_frames++;
@@ -50,12 +71,28 @@ static void mark_used(phys_addr_t base, uint64_t length)
     }
 }
 
-static void mark_free(phys_addr_t base, uint64_t length)
+static void mark_free(uint64_t base, uint64_t length)
 {
-    uint32_t first = (uint32_t)((base + PAGE_SIZE - 1) >> PAGE_SHIFT);
-    uint32_t last  = (uint32_t)((base + length) >> PAGE_SHIFT);
+    uint64_t first64;
+    uint64_t last64;
+    uint32_t first;
+    uint32_t last;
 
-    for (uint32_t f = first; f < last && f < total_frames; f++) {
+    if (!length || base >= PMM_DIRECT_MAP_LIMIT)
+        return;
+    if (length > UINT64_MAX - base)
+        length = UINT64_MAX - base;
+
+    first64 = (base + PAGE_SIZE - 1) >> PAGE_SHIFT;
+    last64 = (base + length) >> PAGE_SHIFT;
+    if (first64 >= total_frames)
+        return;
+    if (last64 > total_frames)
+        last64 = total_frames;
+
+    first = (uint32_t)first64;
+    last = (uint32_t)last64;
+    for (uint32_t f = first; f < last; f++) {
         if (bit_test(f)) {
             bit_clear(f);
             used_frames--;
@@ -80,27 +117,38 @@ void pmm_init(const struct bootinfo *info)
     const struct e820_entry *map = (const struct e820_entry *)info->mmap_addr;
     uint64_t highest = 0;
 
-    /* Pass 1: how much address space do we have to describe? */
+    /* Pass 1: record total reported usable RAM, but manage only the physical
+       range that the kernel identity maps and can dereference directly. */
     for (uint32_t i = 0; i < info->mmap_count; i++) {
-        uint64_t end = map[i].base + map[i].length;
-        if (map[i].type == E820_USABLE && end > highest)
+        uint64_t end;
+
+        if (map[i].type != E820_USABLE)
+            continue;
+        if (map[i].length > UINT64_MAX - map[i].base)
+            end = UINT64_MAX;
+        else
+            end = map[i].base + map[i].length;
+        if (end > highest)
             highest = end;
-        total_bytes += (map[i].type == E820_USABLE) ? map[i].length : 0;
+        if (UINT64_MAX - total_bytes < map[i].length)
+            total_bytes = UINT64_MAX;
+        else
+            total_bytes += map[i].length;
     }
-    if (highest > MAX_PHYS)
-        highest = MAX_PHYS;
+    if (highest > PMM_DIRECT_MAP_LIMIT)
+        highest = PMM_DIRECT_MAP_LIMIT;
 
     total_frames = (uint32_t)(highest >> PAGE_SHIFT);
     bitmap_words = (total_frames + 31) / 32;
     bitmap       = (uint32_t *)ALIGN_UP((uintptr_t)__kernel_end, 16);
 
-    /* Pass 2: start with everything reserved, then hand back usable RAM. */
+    /* Pass 2: start with everything reserved, then hand back low usable RAM. */
     memset(bitmap, 0xFF, bitmap_words * sizeof(uint32_t));
     used_frames = total_frames;
 
     for (uint32_t i = 0; i < info->mmap_count; i++) {
         if (map[i].type == E820_USABLE)
-            mark_free((phys_addr_t)map[i].base, map[i].length);
+            mark_free(map[i].base, map[i].length);
     }
 
     /* Never hand out anything the kernel or the bitmap is sitting on. */
@@ -131,13 +179,13 @@ phys_addr_t pmm_alloc_frame(void)
     }
 
     irq_restore(flags);
-    return 0;                       /* out of physical memory */
+    return 0;                       /* out of managed physical memory */
 }
 
 /*
  * Allocate a run of frames that are contiguous in physical memory.  Window
- * buffers use this so the kernel can treat one as a flat array through the
- * identity map while the owning process sees it through its own mapping.
+ * buffers and DMA users rely on the returned range being both physically
+ * contiguous and reachable through the kernel's identity map.
  */
 phys_addr_t pmm_alloc_frames(uint32_t count)
 {
@@ -149,6 +197,8 @@ phys_addr_t pmm_alloc_frames(uint32_t count)
         return 0;
     if (count == 1)
         return pmm_alloc_frame();
+    if (count > total_frames)
+        return 0;
 
     flags = irq_save();
     for (uint32_t frame = 0; frame < total_frames; frame++) {
@@ -173,8 +223,15 @@ phys_addr_t pmm_alloc_frames(uint32_t count)
 
 void pmm_free_contiguous(phys_addr_t base, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++)
-        pmm_free_frame(base + i * PAGE_SIZE);
+    if (count > total_frames || base >= USER_MIN)
+        return;
+    for (uint32_t i = 0; i < count; i++) {
+        uint64_t addr = (uint64_t)base + (uint64_t)i * PAGE_SIZE;
+
+        if (addr >= USER_MIN)
+            break;
+        pmm_free_frame((phys_addr_t)addr);
+    }
 }
 
 void pmm_free_frame(phys_addr_t addr)
@@ -182,7 +239,7 @@ void pmm_free_frame(phys_addr_t addr)
     uint32_t frame = addr >> PAGE_SHIFT;
     uint32_t flags;
 
-    if (frame >= total_frames)
+    if (addr >= USER_MIN || frame >= total_frames)
         return;
 
     flags = irq_save();
