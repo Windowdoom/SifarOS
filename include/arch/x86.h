@@ -55,8 +55,11 @@ void keyboard_init(void);
 int  keyboard_trygetc(void);
 void keyboard_feed_byte(uint8_t byte);
 
-/* Read the CPU vendor/brand via CPUID; buffers must hold 13 and 49 bytes. */
+/* CPU feature and identification helpers. */
 void cpu_identify(char *vendor, char *brand);
+int  cpu_has_pae(void);
+int  cpu_has_nx(void);
+int  cpu_enable_nx(void);    /* sets EFER.NXE; returns 0 on success */
 void cpu_reboot(void) __attribute__((noreturn));
 void cpu_halt(void) __attribute__((noreturn));
 
