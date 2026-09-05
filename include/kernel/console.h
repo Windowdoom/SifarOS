@@ -33,12 +33,13 @@ void vga_status(const char *text);
 void serial_init(void);
 void serial_putc(char c);
 void serial_write(const char *s, size_t n);
-int  serial_poll(void);          /* -1 when no byte is waiting */
+int  serial_poll(void);
 
 /* ---- console: fan out to every attached device ---- */
 void console_init(int text_mode);
 void console_attach_screen(void);
 void console_set_screen_output(int enabled);
+void console_set_keyboard_input(int enabled);
 uint32_t console_log_read(char *buffer, uint32_t size);
 
 /* framebuffer text console */
@@ -51,10 +52,9 @@ void fbcon_flush(void);
 void console_putc(char c);
 void console_write(const char *s, size_t n);
 void console_clear(void);
-int  console_getc(void);         /* blocking, keyboard or serial */
-int  console_trygetc(void);      /* -1 when nothing is pending */
+int  console_getc(void);
+int  console_trygetc(void);
 
-/* Keys with no ASCII equivalent are reported above the byte range. */
 #define KEY_UP     0x100
 #define KEY_DOWN   0x101
 #define KEY_LEFT   0x102
