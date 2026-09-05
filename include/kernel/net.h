@@ -2,18 +2,7 @@
 #define _KERNEL_NET_H
 
 #include <kernel/types.h>
-
-#define NET_HOST_MAX 128u
-#define NET_PATH_MAX 512u
-#define NET_HTTP_MAX (64u * 1024u)
-
-struct net_info {
-    uint32_t ready;
-    uint8_t  mac[6];
-    uint8_t  ipv4[4];
-    uint8_t  gateway[4];
-    uint8_t  dns[4];
-};
+#include <sys/net.h>
 
 /* SifarOS 2.0 v1 uses QEMU user networking's private 10.0.2.0/24 network.
  * This is intentionally explicit until DHCP is implemented. */
