@@ -46,9 +46,9 @@ int  wm_poll_event(struct process *owner, uint32_t id, struct gui_event *out);
 int  wm_set_title(struct process *owner, uint32_t id, const char *title);
 int  wm_move_window(struct process *owner, uint32_t id, int x, int y);
 int  wm_resize_window(struct process *owner, uint32_t id, int width, int height);
-int  wm_list_windows(struct process *owner, struct gui_window_desc *out, int max);
-int  wm_activate(struct process *owner, uint32_t id);
-int  wm_minimize(struct process *owner, uint32_t id);
+int  wm_list_windows(struct gui_window_desc *out, int max);
+int  wm_activate(uint32_t id);
+int  wm_minimize(uint32_t id);
 int  wm_set_flags(struct process *owner, uint32_t id, uint32_t flags);
 void wm_close_process_windows(struct process *owner);
 
