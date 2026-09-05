@@ -146,8 +146,13 @@ void *kmalloc(size_t size)
 
 void *kcalloc(size_t count, size_t size)
 {
-    size_t total = count * size;
-    void  *p = kmalloc(total);
+    size_t total;
+    void  *p;
+
+    if (size && count > SIZE_MAX / size)
+        return NULL;
+    total = count * size;
+    p = kmalloc(total);
 
     if (p)
         memset(p, 0, total);
