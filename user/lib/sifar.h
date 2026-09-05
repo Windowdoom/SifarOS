@@ -10,6 +10,7 @@
 #include <sys/syscall.h>
 #include <sys/gui.h>
 #include <sys/sysinfo.h>
+#include <sys/net.h>
 
 typedef unsigned int   size_t;
 typedef unsigned char  uint8_t;
@@ -64,6 +65,11 @@ int  make_directory(const char *path);
 int  list_directory(const char *path, struct sys_dirent *out, int max);
 int  change_directory(const char *path);
 int  working_directory(char *out, size_t length);
+
+/* ---- network ---- */
+int network_info(struct net_info *out);
+int http_get(const char *host, uint16_t port, const char *path,
+             void *out, size_t capacity);
 
 /* ---- memory ---- */
 void *malloc(size_t size);
