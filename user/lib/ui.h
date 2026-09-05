@@ -14,19 +14,20 @@
 #define UI_GLYPH_W 8
 #define UI_GLYPH_H 16
 
-/* Palette */
-#define UI_BG            0xFF1E2430u
-#define UI_PANEL         0xFF283244u
-#define UI_PANEL_LIGHT   0xFF34405Au
-#define UI_SURFACE       0xFF222A38u
-#define UI_ACCENT        0xFF3C7AD0u
-#define UI_ACCENT_LIGHT  0xFF5A96E8u
-#define UI_TEXT          0xFFE4EAF2u
-#define UI_TEXT_DIM      0xFF93A0B4u
-#define UI_BORDER        0xFF161C26u
-#define UI_GOOD          0xFF48B070u
-#define UI_WARN          0xFFD8A038u
-#define UI_BAD           0xFFCC5548u
+/* SifarOS 2.0 palette: deep neutral surfaces, cobalt accent, softer contrast. */
+#define UI_BG            0xFF0A0F1Cu
+#define UI_PANEL         0xFF111827u
+#define UI_PANEL_LIGHT   0xFF1A2436u
+#define UI_SURFACE       0xFF0E1626u
+#define UI_SURFACE_ALT   0xFF162033u
+#define UI_ACCENT        0xFF4F7DF3u
+#define UI_ACCENT_LIGHT  0xFF78A1FFu
+#define UI_TEXT          0xFFF4F7FBu
+#define UI_TEXT_DIM      0xFF93A4BAu
+#define UI_BORDER        0xFF253248u
+#define UI_GOOD          0xFF45D39Au
+#define UI_WARN          0xFFF2B84Bu
+#define UI_BAD           0xFFF06C75u
 #define UI_WHITE         0xFFFFFFFFu
 #define UI_BLACK         0xFF000000u
 
