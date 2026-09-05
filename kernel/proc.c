@@ -3,8 +3,8 @@
  *
  * A process owns an address space, a heap and one or more threads.  The
  * kernel itself is process 0 and keeps the kernel address space; everything
- * loaded from disk gets a private one, so a bug in an application can only
- * damage that application.
+ * loaded from disk gets a private one.  Cross-process control is restricted
+ * to the kernel or the direct parent until the capability model lands.
  */
 #include <kernel/proc.h>
 #include <kernel/elf.h>
@@ -180,24 +180,37 @@ static int build_stack(struct process *proc, int argc, const char *const *argv,
     uint8_t scratch[ARG_AREA_MAX];
     uint32_t pointers[16];
     size_t strings_len = 0;
+    size_t pointer_bytes;
     size_t total;
     virt_addr_t base;
 
+    if (!proc || !out_esp || argc < 0 || (argc > 0 && !argv))
+        return -1;
     if (argc > 15)
         argc = 15;
+
+    pointer_bytes = 4 + ((size_t)argc + 1) * 4;
+    if (pointer_bytes > sizeof(scratch))
+        return -1;
+
     for (int i = 0; i < argc; i++) {
+        size_t len;
+
         if (!argv[i])
             return -1;
-        strings_len += strlen(argv[i]) + 1;
+        len = strlen(argv[i]) + 1;
+        if (len > sizeof(scratch) - pointer_bytes - strings_len)
+            return -1;
+        strings_len += len;
     }
-    total = 4 + (size_t)(argc + 1) * 4 + strings_len;
-    total = ALIGN_UP(total, 16);
+
+    total = ALIGN_UP(pointer_bytes + strings_len, 16);
     if (total > sizeof(scratch))
         return -1;
     base = proc->stack_top - total;
 
     {
-        size_t string_offset = 4 + (size_t)(argc + 1) * 4;
+        size_t string_offset = pointer_bytes;
         for (int i = 0; i < argc; i++) {
             size_t len = strlen(argv[i]) + 1;
             memcpy(scratch + string_offset, argv[i], len);
@@ -205,7 +218,7 @@ static int build_stack(struct process *proc, int argc, const char *const *argv,
             string_offset += len;
         }
     }
-    memset(scratch, 0, 4 + (size_t)(argc + 1) * 4);
+    memset(scratch, 0, pointer_bytes);
     *(uint32_t *)scratch = (uint32_t)argc;
     for (int i = 0; i < argc; i++)
         *(uint32_t *)(scratch + 4 + i * 4) = pointers[i];
@@ -249,6 +262,8 @@ int proc_spawn_image(const char *name, const uint8_t *image, size_t size,
     int slot;
     int tid;
 
+    if (argc < 0 || (argc > 0 && !argv))
+        return -1;
     if (!elf_is_valid(image, size))
         return -1;
     proc = allocate();
@@ -359,10 +374,19 @@ void proc_reap(void)
     }
 }
 
+static int may_reap(struct process *caller, const struct process *target)
+{
+    if (!caller || !target || target == kernel_process || target == caller)
+        return 0;
+    return caller == kernel_process || target->parent == caller->pid;
+}
+
 int proc_wait(int pid, int *exit_code)
 {
+    struct process *caller = proc_current();
     struct process *proc = proc_by_pid(pid);
-    if (!proc)
+
+    if (!may_reap(caller, proc))
         return -1;
     while (proc->state == PROC_RUNNING)
         sched_yield();
@@ -376,8 +400,10 @@ int proc_wait(int pid, int *exit_code)
 
 int proc_try_wait(int pid, int *exit_code)
 {
+    struct process *caller = proc_current();
     struct process *proc = proc_by_pid(pid);
-    if (!proc)
+
+    if (!may_reap(caller, proc))
         return -1;
     if (proc->state == PROC_RUNNING || !proc->cleaned)
         return 0;
@@ -389,9 +415,18 @@ int proc_try_wait(int pid, int *exit_code)
 
 int proc_kill(int pid)
 {
+    struct process *caller = proc_current();
     struct process *proc = proc_by_pid(pid);
-    if (!proc || proc == kernel_process)
+
+    if (!proc || proc == kernel_process || proc == caller)
         return -1;
+    if (caller != kernel_process && proc->parent != caller->pid) {
+        security_event_record(SECURITY_EVENT_SYSCALL_VIOLATION,
+                              caller ? (uint32_t)caller->pid : 0,
+                              SYS_KILL, SECURITY_RESPONSE_SUSPICIOUS);
+        return -1;
+    }
+
     thread_kill(proc->main_tid);
     proc->exit_code = -1;
     proc->state = PROC_ZOMBIE;
