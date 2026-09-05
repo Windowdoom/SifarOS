@@ -1,0 +1,51 @@
+name: Fix staged syscall dispatch
+
+on:
+  push:
+    branches:
+      - sifar/2.0-adaptive-staging
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v4
+        with:
+          ref: sifar/2.0-adaptive-staging
+          fetch-depth: 0
+
+      - name: Move network cases to syscall dispatcher
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('kernel/syscall.c')
+          text = path.read_text()
+
+          misplaced = '''  case SYS_NET_INFO:\n    result = sys_net_info(arg1);\n    break;\n  case SYS_HTTP_GET:\n    result = sys_http_get(arg1, arg2, arg3);\n    break;\n'''
+          if misplaced not in text:
+              raise SystemExit('misplaced network syscall cases not found')
+          text = text.replace(misplaced, '', 1)
+
+          target = '''  case SYS_FONT: {\n    void *out = (void *)(uintptr_t)arg1;\n'''
+          replacement = '''  case SYS_NET_INFO:\n    result = sys_net_info(arg1);\n    break;\n  case SYS_HTTP_GET:\n    result = sys_http_get(arg1, arg2, arg3);\n    break;\n  case SYS_FONT: {\n    void *out = (void *)(uintptr_t)arg1;\n'''
+          if target not in text:
+              raise SystemExit('dispatcher target not found')
+          text = text.replace(target, replacement, 1)
+          path.write_text(text)
+          PY
+          clang-format -i kernel/syscall.c
+          git diff --check
+
+      - name: Commit correction
+        run: |
+          git config user.name "SifarOS CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add kernel/syscall.c
+          git commit -m "syscall: place network calls in main dispatcher"
+          git push origin HEAD:sifar/2.0-adaptive-staging
