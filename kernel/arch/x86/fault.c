@@ -9,6 +9,7 @@
 #include <kernel/kprintf.h>
 #include <kernel/sched.h>
 #include <kernel/mm.h>
+#include <kernel/proc.h>
 #include <kernel/io.h>
 
 static const char *fault_name(uint32_t vector)
@@ -57,12 +58,20 @@ static void dump(const struct registers *regs, uint32_t cr2)
 static void kill_current(const struct registers *regs, uint32_t vector, uint32_t cr2)
 {
     struct thread *t = thread_current();
+    struct process *proc = proc_current();
+    uint32_t cr3;
+
+    __asm__ volatile("movl %%cr3, %0" : "=r"(cr3));
 
     kprintf("\n[%s (tid %d) killed: %s", t ? t->name : "?", t ? t->tid : -1,
             fault_name(vector));
     if (vector == 14)
         kprintf(" at %p", (void *)cr2);
     kprintf(", eip %p]\n", (void *)regs->eip);
+    kprintf("  pid %d (%s), eip %p, esp %p, error 0x%x\n",
+            proc ? proc->pid : -1, proc ? proc->name : "?",
+            (void *)regs->eip, (void *)regs->useresp, regs->err_code);
+    (void)cr3;
 
     thread_exit(-((int)vector));
 }

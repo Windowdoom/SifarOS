@@ -37,7 +37,8 @@ uint64_t vfs_bytes_used(void)
     return root ? sum_bytes(root) : 0;
 }
 
-static struct fs_node *node_alloc(const char *name, uint8_t type)
+static struct fs_node *node_alloc(const char *name, uint8_t type,
+                                  const struct fs_ops *ops)
 {
     struct fs_node *node = (struct fs_node *)kcalloc(1, sizeof(*node));
 
@@ -46,25 +47,25 @@ static struct fs_node *node_alloc(const char *name, uint8_t type)
 
     strlcpy(node->name, name, FS_NAME_MAX);
     node->type = type;
-    node->ops = ramfs_ops();
+    node->ops = ops ? ops : ramfs_ops();
     node->created_ms = timer_ms();
     node->modified_ms = node->created_ms;
-
-    if (node->ops->create && node->ops->create(node) < 0) {
-        kfree(node);
-        return NULL;
-    }
 
     node_count++;
     return node;
 }
 
-static void node_free(struct fs_node *node)
+/* Build a node that a filesystem driver already has storage for. */
+struct fs_node *vfs_node_new(const char *name, uint8_t type,
+                             const struct fs_ops *ops, void *backend, size_t size)
 {
-    if (node->ops && node->ops->destroy)
-        node->ops->destroy(node);
-    kfree(node);
-    node_count--;
+    struct fs_node *node = node_alloc(name, type, ops);
+
+    if (!node)
+        return NULL;
+    node->backend = backend;
+    node->size = size;
+    return node;
 }
 
 static struct fs_node *find_child(struct fs_node *dir, const char *name, size_t len)
@@ -257,14 +258,38 @@ struct fs_node *vfs_create(const char *cwd, const char *path, uint8_t type)
     if (strlen(slash + 1) >= FS_NAME_MAX)
         return NULL;
 
-    node = node_alloc(slash + 1, type);
+    /* New nodes belong to the same filesystem as the directory holding them. */
+    node = node_alloc(slash + 1, type, parent->ops);
     if (!node)
         return NULL;
 
     link_child(parent, node);
+
+    if (node->ops->create && node->ops->create(node) < 0) {
+        unlink_child(parent, node);
+        kfree(node);
+        node_count--;
+        return NULL;
+    }
     return node;
 }
 
+void vfs_attach(struct fs_node *parent, struct fs_node *child)
+{
+    link_child(parent, child);
+}
+
+void vfs_set_root(struct fs_node *node)
+{
+    root = node;
+    node->parent = NULL;
+}
+
+/*
+ * Release a subtree.  Backends are told about each node while it is still
+ * linked to its parent, because an on-disk filesystem needs the parent
+ * directory in order to remove the entry.
+ */
 static void destroy_tree(struct fs_node *node)
 {
     struct fs_node *child = node->first_child;
@@ -275,7 +300,13 @@ static void destroy_tree(struct fs_node *node)
         destroy_tree(child);
         child = next;
     }
-    node_free(node);
+
+    if (node->ops && node->ops->destroy)
+        node->ops->destroy(node);
+    if (node->parent)
+        unlink_child(node->parent, node);
+    kfree(node);
+    node_count--;
 }
 
 int vfs_unlink(const char *cwd, const char *path)
@@ -287,7 +318,6 @@ int vfs_unlink(const char *cwd, const char *path)
     if (node->readonly)
         return -2;
 
-    unlink_child(node->parent, node);
     destroy_tree(node);
     return 0;
 }
@@ -358,8 +388,10 @@ ssize_t vfs_read_file(const char *path, void *buf, size_t len)
 
 void vfs_init(void)
 {
-    root = node_alloc("", FS_DIR);
+    root = node_alloc("", FS_DIR, ramfs_ops());
     if (!root)
         panic("vfs: cannot allocate root directory");
+    if (root->ops->create)
+        root->ops->create(root);
     root->parent = NULL;
 }

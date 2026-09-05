@@ -6,6 +6,7 @@
  * down the serial line.
  */
 #include <kernel/shell.h>
+#include <kernel/version.h>
 #include <kernel/console.h>
 #include <kernel/kprintf.h>
 #include <kernel/string.h>
@@ -13,8 +14,14 @@
 #include <kernel/mm.h>
 #include <kernel/fs.h>
 #include <kernel/proc.h>
+#include <kernel/programs.h>
 #include <kernel/rtc.h>
 #include <kernel/ktest.h>
+#include <kernel/gfx.h>
+#include <kernel/sfs.h>
+#include <kernel/blockdev.h>
+#include <kernel/input.h>
+#include <kernel/wm.h>
 #include <kernel/io.h>
 #include <arch/x86.h>
 
@@ -102,7 +109,7 @@ static int cmd_uname(int argc, char **argv)
     char brand[52];
 
     cpu_identify(vendor, brand);
-    kprintf("SifarOS 0.1.0 i386\n");
+    kprintf("%s %s i386\n", SIFAROS_NAME, SIFAROS_VERSION);
     kprintf("cpu: %s (%s)\n", brand[0] ? brand : "unknown", vendor);
     kprintf("built: " __DATE__ " " __TIME__ "\n");
     return 0;
@@ -578,7 +585,7 @@ static int cmd_programs(int argc, char **argv)
 static int cmd_run(int argc, char **argv)
 {
     const struct embedded_program *program;
-    int tid, code;
+    int pid, code = 0;
 
     if (!need_args(argc, 2, "run <program>"))
         return 1;
@@ -588,20 +595,166 @@ static int cmd_run(int argc, char **argv)
         kprintf("run: no such program: %s (try 'programs')\n", argv[1]);
         return 1;
     }
-    if (proc_active()) {
-        kprintf("run: a user program is already loaded\n");
+    {
+        const char *args[4];
+        int count = 0;
+
+        args[count++] = program->name;
+        for (int i = 2; i < argc && count < 4; i++)
+            args[count++] = argv[i];
+
+        pid = proc_spawn_image(program->name, program->start,
+                               (size_t)(program->end - program->start),
+                               count, args);
+    }
+    if (pid < 0) {
+        kprintf("run: cannot start %s (error %d)\n", program->name, pid);
         return 1;
     }
 
-    tid = proc_spawn(program->name, program->start,
-                     (size_t)(program->end - program->start));
-    if (tid < 0) {
-        kprintf("run: cannot start %s\n", program->name);
-        return 1;
-    }
-
-    code = proc_wait(tid);
+    proc_wait(pid, &code);
     kprintf("[%s exited with status %d]\n", program->name, code);
+    return 0;
+}
+
+/* Time the graphics paths, which decides how the compositor has to work. */
+static int cmd_bench(int argc, char **argv)
+{
+    struct gfx_surface *screen;
+    uint64_t start, elapsed;
+    const int rounds = 30;
+
+    if (!gfx_available()) {
+        kprintf("bench: no framebuffer\n");
+        return 1;
+    }
+    screen = gfx_screen();
+
+    start = timer_ms();
+    for (int i = 0; i < rounds; i++)
+        gfx_clear(screen, RGB(0, 0, (uint32_t)(i * 8)));
+    elapsed = timer_ms() - start;
+    kprintf("back buffer clear : %u ms for %d frames (%u ms each)\n",
+            (uint32_t)elapsed, rounds, (uint32_t)(elapsed / rounds));
+
+    start = timer_ms();
+    for (int i = 0; i < rounds; i++)
+        gfx_present();
+    elapsed = timer_ms() - start;
+    kprintf("full present      : %u ms for %d frames (%u ms each)\n",
+            (uint32_t)elapsed, rounds, (uint32_t)(elapsed / rounds));
+
+    start = timer_ms();
+    for (int i = 0; i < rounds; i++)
+        gfx_present_rect(0, 0, 320, 240);
+    elapsed = timer_ms() - start;
+    kprintf("320x240 present   : %u ms for %d frames\n", (uint32_t)elapsed, rounds);
+
+    start = timer_ms();
+    for (int i = 0; i < rounds * 10; i++)
+        gfx_fill_rect(screen, 100, 100, 400, 300, RGB(20, 30, 40));
+    elapsed = timer_ms() - start;
+    kprintf("400x300 fill x300 : %u ms\n", (uint32_t)elapsed);
+    return 0;
+}
+
+static int cmd_df(int argc, char **argv)
+{
+    uint64_t total = 0, free_bytes = 0;
+    uint32_t inodes = 0;
+
+    if (!sfs_mounted()) {
+        kprintf("filesystem: ramfs (in memory, nothing is written to disk)\n");
+        kprintf("  nodes: %u, bytes: %u\n", vfs_node_count(),
+                (uint32_t)vfs_bytes_used());
+        return 0;
+    }
+
+    sfs_stats(&total, &free_bytes, &inodes);
+    kprintf("filesystem: SifarFS \"%s\" on %s\n", sfs_label(), ata_model());
+    kprintf("  size : ");  print_size(total); kprintf("\n");
+    kprintf("  used : ");  print_size(total - free_bytes); kprintf("\n");
+    kprintf("  free : ");  print_size(free_bytes); kprintf("\n");
+    kprintf("  nodes: %u in the tree\n", vfs_node_count());
+    return 0;
+}
+
+/* Load and run a program from the filesystem. */
+static int cmd_exec(int argc, char **argv)
+{
+    const char *args[8];
+    int count = 0;
+    int pid, code = 0;
+
+    if (!need_args(argc, 2, "exec <path> [arguments...]"))
+        return 1;
+
+    for (int i = 1; i < argc && count < 8; i++)
+        args[count++] = argv[i];
+
+    pid = proc_spawn(argv[1], count, args);
+    if (pid < 0) {
+        kprintf("exec: cannot start %s (error %d)\n", argv[1], pid);
+        return 1;
+    }
+
+    proc_wait(pid, &code);
+    kprintf("[%s exited with status %d]\n", argv[1], code);
+    return 0;
+}
+
+static void print_process(const struct process *proc, void *ctx)
+{
+    (void)ctx;
+    kprintf("  %-4d %-4d %-12s %-8s %5u KiB  %s\n", proc->pid, proc->parent,
+            proc->name,
+            proc->state == PROC_RUNNING ? "running" : "zombie",
+            (proc->user_pages * PAGE_SIZE) / KB,
+            proc->pid == 0 ? "kernel" : "user");
+}
+
+static int cmd_procs(int argc, char **argv)
+{
+    kprintf("  %-4s %-4s %-12s %-8s %9s  %s\n",
+            "PID", "PPID", "NAME", "STATE", "MEMORY", "MODE");
+    proc_foreach(print_process, NULL);
+    kprintf("  %d process(es)\n", proc_count());
+    return 0;
+}
+
+static int cmd_mouse(int argc, char **argv)
+{
+    uint32_t irqs = 0, packets = 0, buttons = 0;
+    int x = 0, y = 0;
+
+    int32_t dx = 0, dy = 0;
+    uint32_t drops = 0;
+    uint8_t raw[4] = { 0 };
+
+    mouse_debug(&irqs, &packets, &x, &y, &buttons);
+    mouse_debug_raw(&dx, &dy, &drops, raw);
+    kprintf("mouse: %s, %u interrupts, %u packets, at (%d, %d), buttons 0x%x\n",
+            mouse_present() ? "present" : "absent", irqs, packets, x, y, buttons);
+    kprintf("       total movement (%d, %d), %u packets dropped, last bytes %02x %02x %02x %02x\n",
+            dx, dy, drops, raw[0], raw[1], raw[2], raw[3]);
+    return 0;
+}
+
+static int cmd_windows(int argc, char **argv)
+{
+    struct gui_window_desc list[GUI_MAX_WINDOWS];
+    int count = wm_list_windows(list, GUI_MAX_WINDOWS);
+    int x = 0, y = 0;
+    uint32_t buttons = 0;
+
+    mouse_position(&x, &y, &buttons);
+    kprintf("cursor : (%d, %d), buttons 0x%x\n", x, y, buttons);
+    kprintf("  %-4s %-4s %-8s %-8s %s\n", "ID", "PID", "STATE", "FOCUS", "TITLE");
+    for (int i = 0; i < count; i++)
+        kprintf("  %-4u %-4u %-8s %-8s %s\n", list[i].id, list[i].pid,
+                list[i].state == GUI_STATE_MINIMIZED ? "min" : "normal",
+                list[i].focused ? "yes" : "no", list[i].title);
+    kprintf("  %d window(s)\n", count);
     return 0;
 }
 
@@ -661,7 +814,13 @@ static const struct command command_table[] = {
     { "hexdump",  "hexdump <file>",            "dump a file as hex", cmd_hexdump },
     { "programs", "programs",                  "list embedded user programs", cmd_programs },
     { "run",      "run <program>",             "run a program in ring 3", cmd_run },
+    { "df",       "df",                        "filesystem usage", cmd_df },
+    { "exec",     "exec <path> [args...]",     "run a program from the filesystem", cmd_exec },
+    { "procs",    "procs",                     "list processes", cmd_procs },
+    { "windows",  "windows",                   "list windows and the cursor", cmd_windows },
+    { "mouse",    "mouse",                     "show mouse driver state", cmd_mouse },
     { "selftest", "selftest",                  "run the kernel self-test suite", cmd_selftest },
+    { "bench",    "bench",                     "time the graphics paths", cmd_bench },
     { "history",  "history",                   "show recent commands", cmd_history },
     { "reboot",   "reboot",                    "restart the machine", cmd_reboot },
     { "halt",     "halt",                      "stop the machine", cmd_halt },

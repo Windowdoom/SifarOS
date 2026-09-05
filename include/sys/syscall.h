@@ -18,7 +18,45 @@
 #define SYS_FS_WRITE 7      /* (path, buf, len) - replace file contents */
 #define SYS_FS_READ  8      /* (path, buf, len) - read from offset zero */
 #define SYS_PUTC     9      /* (character) */
-#define SYS_MAX      10
+#define SYS_SBRK     10     /* (increment) -> previous break */
+#define SYS_SPAWN    11     /* (path, argv, argc) -> pid */
+#define SYS_WAIT     12     /* (pid) -> exit status */
+#define SYS_MAX      13
+
+/* ---- filesystem ---- */
+#define SYS_OPENDIR   20    /* (path, entries, max) -> count */
+#define SYS_STAT      21    /* (path, struct sys_stat *) */
+#define SYS_UNLINK    22    /* (path) */
+#define SYS_MKDIR     23    /* (path) */
+#define SYS_FS_APPEND 24    /* (path, buf, len) */
+#define SYS_CHDIR     25    /* (path) */
+#define SYS_GETCWD    26    /* (buf, len) */
+
+/* ---- window system ---- */
+#define SYS_GUI_CREATE     30   /* (width, height, title) -> window id */
+#define SYS_GUI_INFO       31   /* (id, struct gui_window_info *) */
+#define SYS_GUI_INVALIDATE 32   /* (id, packed x/y, packed w/h) */
+#define SYS_GUI_POLL       33   /* (id, struct gui_event *) -> 1 if an event */
+#define SYS_GUI_WAIT       34   /* (id, struct gui_event *, timeout ms) */
+#define SYS_GUI_DESTROY    35   /* (id) */
+#define SYS_GUI_TITLE      36   /* (id, title) */
+#define SYS_GUI_MOVE       37   /* (id, x, y) */
+#define SYS_GUI_RESIZE     38   /* (id, width, height) */
+#define SYS_GUI_LIST       39   /* (struct gui_window_desc *, max) -> count */
+#define SYS_GUI_ACTIVATE   40   /* (id) */
+#define SYS_GUI_MINIMIZE   41   /* (id) */
+#define SYS_GUI_SCREEN     42   /* (struct gui_screen_info *) */
+#define SYS_GUI_FLAGS      43   /* (id, flags) */
+
+/* ---- system information ---- */
+#define SYS_SYSINFO   50    /* (struct sys_info *) */
+#define SYS_PROCLIST  51    /* (struct sys_proc *, max) -> count */
+#define SYS_KILL      52    /* (pid) */
+#define SYS_LOG       53    /* (buf, len) -> bytes of kernel log */
+#define SYS_TIME      54    /* (struct sys_time *) */
+#define SYS_REBOOT    55
+#define SYS_SHUTDOWN  56
+#define SYS_FONT      57    /* (buf, len) -> copies the 8x16 console font */
 
 /* Where user programs are loaded and where their stack lives. */
 #define USER_BASE       0x40000000u

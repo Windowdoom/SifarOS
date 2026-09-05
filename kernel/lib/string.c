@@ -1,21 +1,45 @@
 /* Minimal freestanding C string/memory routines. */
 #include <kernel/string.h>
 
+/*
+ * memcpy and memset move whole frames and framebuffers around, so they use
+ * the string instructions and work a dword at a time.  Copying byte by byte
+ * here costs more than every other part of drawing a frame put together.
+ */
 void *memset(void *dst, int c, size_t n)
 {
-    uint8_t *p = (uint8_t *)dst;
-    while (n--)
-        *p++ = (uint8_t)c;
-    return dst;
+    void    *result = dst;
+    uint8_t  value = (uint8_t)c;
+    uint32_t pattern = (uint32_t)value * 0x01010101u;
+    size_t   words = n / 4;
+    size_t   bytes = n % 4;
+
+    __asm__ volatile("cld; rep stosl"
+                     : "+D"(dst), "+c"(words)
+                     : "a"(pattern)
+                     : "memory");
+    __asm__ volatile("rep stosb"
+                     : "+D"(dst), "+c"(bytes)
+                     : "a"(pattern)
+                     : "memory");
+    return result;
 }
 
 void *memcpy(void *dst, const void *src, size_t n)
 {
-    uint8_t *d = (uint8_t *)dst;
-    const uint8_t *s = (const uint8_t *)src;
-    while (n--)
-        *d++ = *s++;
-    return dst;
+    void  *result = dst;
+    size_t words = n / 4;
+    size_t bytes = n % 4;
+
+    __asm__ volatile("cld; rep movsl"
+                     : "+D"(dst), "+S"(src), "+c"(words)
+                     :
+                     : "memory");
+    __asm__ volatile("rep movsb"
+                     : "+D"(dst), "+S"(src), "+c"(bytes)
+                     :
+                     : "memory");
+    return result;
 }
 
 void *memmove(void *dst, const void *src, size_t n)

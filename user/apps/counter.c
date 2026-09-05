@@ -2,9 +2,9 @@
  * Sleeps between lines so you can watch the kernel schedule other threads
  * while this one is blocked.
  */
-#include "ulib.h"
+#include "sifar.h"
 
-int main(void)
+int main(int argc, char **argv)
 {
     for (int i = 1; i <= 5; i++) {
         printf("counter: tick %d of 5 at %d ms\n", i, uptime_ms());

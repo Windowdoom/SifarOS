@@ -134,6 +134,49 @@ phys_addr_t pmm_alloc_frame(void)
     return 0;                       /* out of physical memory */
 }
 
+/*
+ * Allocate a run of frames that are contiguous in physical memory.  Window
+ * buffers use this so the kernel can treat one as a flat array through the
+ * identity map while the owning process sees it through its own mapping.
+ */
+phys_addr_t pmm_alloc_frames(uint32_t count)
+{
+    uint32_t flags;
+    uint32_t run = 0;
+    uint32_t start = 0;
+
+    if (count == 0)
+        return 0;
+    if (count == 1)
+        return pmm_alloc_frame();
+
+    flags = irq_save();
+    for (uint32_t frame = 0; frame < total_frames; frame++) {
+        if (bit_test(frame)) {
+            run = 0;
+            continue;
+        }
+        if (run == 0)
+            start = frame;
+        if (++run == count) {
+            for (uint32_t i = 0; i < count; i++) {
+                bit_set(start + i);
+                used_frames++;
+            }
+            irq_restore(flags);
+            return (phys_addr_t)start << PAGE_SHIFT;
+        }
+    }
+    irq_restore(flags);
+    return 0;
+}
+
+void pmm_free_contiguous(phys_addr_t base, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+        pmm_free_frame(base + i * PAGE_SIZE);
+}
+
 void pmm_free_frame(phys_addr_t addr)
 {
     uint32_t frame = addr >> PAGE_SHIFT;

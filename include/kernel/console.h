@@ -36,7 +36,18 @@ void serial_write(const char *s, size_t n);
 int  serial_poll(void);          /* -1 when no byte is waiting */
 
 /* ---- console: fan out to every attached device ---- */
-void console_init(void);
+void console_init(int text_mode);
+void console_attach_screen(void);
+void console_set_screen_output(int enabled);
+uint32_t console_log_read(char *buffer, uint32_t size);
+
+/* framebuffer text console */
+int  fbcon_init(void);
+int  fbcon_ready(void);
+void fbcon_disable(void);
+void fbcon_putc(char c);
+void fbcon_set_colors(uint32_t foreground, uint32_t background);
+void fbcon_flush(void);
 void console_putc(char c);
 void console_write(const char *s, size_t n);
 void console_clear(void);

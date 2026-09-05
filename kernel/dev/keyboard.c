@@ -8,6 +8,7 @@
 #include <arch/x86.h>
 #include <kernel/console.h>
 #include <kernel/io.h>
+#include <kernel/input.h>
 
 #define KBD_DATA   0x60
 #define KBD_STATUS 0x64
@@ -42,6 +43,10 @@ static void push(uint16_t key)
 {
     uint32_t next = (head + 1) % BUFFER_SIZE;
 
+    /* The window system reads keys from the shared input queue; the ring
+       buffer below is what the text console and serial shell consume. */
+    input_push_key(key);
+
     if (next == tail)
         return;             /* buffer full: drop the keystroke */
     buffer[head] = key;
@@ -53,17 +58,17 @@ static int is_letter(char c)
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-static void keyboard_irq(struct registers *regs)
+/* Decode one scancode byte.  Called from either PS/2 interrupt handler. */
+void keyboard_feed_byte(uint8_t code)
 {
-    uint8_t code = inb(KBD_DATA);
-    int     released;
-
-    (void)regs;
+    int released;
 
     if (code == 0xE0) {
         extended = 1;
         return;
     }
+    if (code == 0xFA || code == 0xFE || code == 0xAA)
+        return;                     /* controller acknowledgements */
 
     released = (code & 0x80) != 0;
     code &= 0x7F;
@@ -130,6 +135,22 @@ int keyboard_trygetc(void)
     }
     irq_restore(flags);
     return key;
+}
+
+static void keyboard_irq(struct registers *regs)
+{
+    (void)regs;
+
+    while (1) {
+        uint8_t status = inb(KBD_STATUS);
+
+        if (!(status & 0x01))
+            break;
+        if (status & 0x20)
+            mouse_feed_byte(inb(KBD_DATA));      /* that byte is the mouse's */
+        else
+            keyboard_feed_byte(inb(KBD_DATA));
+    }
 }
 
 void keyboard_init(void)

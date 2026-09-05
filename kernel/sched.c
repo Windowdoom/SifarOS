@@ -12,8 +12,10 @@
 #include <kernel/string.h>
 #include <kernel/io.h>
 #include <arch/x86.h>
+#include <kernel/proc.h>
 
-#define STACK_SIZE      (16 * KB)
+#define STACK_SIZE      (32 * KB)
+#define STACK_GUARD     0x5A11B0DEu     /* sits at the low end of every stack */
 #define QUANTUM_TICKS   5           /* 50 ms at 100 Hz */
 
 extern void context_switch(uint32_t *save_esp, uint32_t new_esp);
@@ -101,6 +103,13 @@ void sched_init(void)
     memset(&boot_thread, 0, sizeof(boot_thread));
     boot_thread.tid   = 0;
     boot_thread.state = THREAD_RUNNING;
+    boot_thread.space = vmm_kernel_space();
+    {
+        static uint8_t boot_fpu[512 + 16];
+
+        boot_thread.fpu_state = (void *)ALIGN_UP((uintptr_t)boot_fpu, 16);
+        fpu_new_state(boot_thread.fpu_state);
+    }
     strlcpy(boot_thread.name, "kernel", THREAD_NAME_MAX);
 
     threads[0] = &boot_thread;
@@ -138,9 +147,25 @@ int thread_create(const char *name, thread_entry_t entry, void *arg)
         return -1;
     }
     t->stack_size = STACK_SIZE;
+    *(uint32_t *)t->stack_base = STACK_GUARD;
+
+    /* FXSAVE needs a 16 byte aligned destination. */
+    {
+        uint8_t *raw = (uint8_t *)kmalloc(512 + 16);
+
+        if (!raw) {
+            kfree((void *)t->stack_base);
+            kfree(t);
+            return -1;
+        }
+        t->fpu_state = (void *)ALIGN_UP((uintptr_t)raw, 16);
+        fpu_new_state(t->fpu_state);
+    }
     t->tid        = next_tid++;
     t->state      = THREAD_READY;
     t->detached   = 1;
+    t->space      = current ? current->space : vmm_kernel_space();
+    t->proc       = NULL;
     strlcpy(t->name, name, THREAD_NAME_MAX);
 
     /* Seed the stack so the first context_switch() lands in the trampoline. */
@@ -200,6 +225,25 @@ static void switch_to(struct thread *next)
     next->state = THREAD_RUNNING;
     current     = next;
     slice_left  = QUANTUM_TICKS;
+
+    /*
+     * Catch a thread that has run off the bottom of its stack.  Silent stack
+     * overflow corrupts whatever heap block sits below and shows up much
+     * later as impossible behaviour somewhere else entirely.
+     */
+    if (prev->stack_base && *(uint32_t *)prev->stack_base != STACK_GUARD)
+        panic("thread %d (%s) overflowed its kernel stack", prev->tid, prev->name);
+
+    /* Floating point registers belong to the thread just like the rest. */
+    if (prev->fpu_state)
+        fpu_save(prev->fpu_state);
+    if (next->fpu_state)
+        fpu_restore(next->fpu_state);
+
+    /* Install the incoming thread's address space before its first
+       instruction runs; kernel threads keep the kernel space. */
+    if (next->space && next->space != vmm_current_space())
+        vmm_space_switch(next->space);
 
     /* Interrupts from ring 3 land on this thread's kernel stack. */
     tss_set_kernel_stack(next->stack_base ?
@@ -276,6 +320,17 @@ void thread_sleep_ms(uint32_t ms)
 void thread_exit(int code)
 {
     cli();
+
+    /* If this was a process's main thread, the process is finished too. */
+    if (current->proc) {
+        struct process *proc = (struct process *)current->proc;
+
+        if (proc->main_tid == current->tid && proc->state == PROC_RUNNING) {
+            proc->exit_code = code;
+            proc->state = PROC_ZOMBIE;
+        }
+    }
+
     current->exit_code = code;
     current->state = THREAD_ZOMBIE;
     remember_exit(current->tid, code);
@@ -317,6 +372,21 @@ int thread_join(int tid)
         irq_restore(flags);
         sched_yield();
     }
+}
+
+int thread_exists(int tid)
+{
+    uint32_t flags = irq_save();
+    int found = 0;
+
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (threads[i] && threads[i]->tid == tid) {
+            found = 1;
+            break;
+        }
+    }
+    irq_restore(flags);
+    return found;
 }
 
 int thread_kill(int tid)

@@ -38,6 +38,13 @@ void pic_unmask_irq(uint8_t irq);
 #define IRQ_TIMER    0
 #define IRQ_KEYBOARD 1
 
+void fpu_init(void);
+int  fpu_present(void);
+int  fpu_sse(void);
+void fpu_new_state(void *state);      /* fill a fresh 512 byte FXSAVE area */
+void fpu_save(void *state);
+void fpu_restore(const void *state);
+
 void     timer_init(uint32_t hz);
 uint64_t timer_ticks(void);
 uint32_t timer_hz(void);
@@ -46,6 +53,7 @@ void     timer_busy_wait(uint32_t ms);
 
 void keyboard_init(void);
 int  keyboard_trygetc(void);
+void keyboard_feed_byte(uint8_t byte);
 
 /* Read the CPU vendor/brand via CPUID; buffers must hold 13 and 49 bytes. */
 void cpu_identify(char *vendor, char *brand);

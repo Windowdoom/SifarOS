@@ -6,6 +6,7 @@
  * visible, then descriptor tables, then memory, then the scheduler.
  */
 #include <kernel/types.h>
+#include <kernel/version.h>
 #include <kernel/bootinfo.h>
 #include <kernel/console.h>
 #include <kernel/kprintf.h>
@@ -15,10 +16,15 @@
 #include <kernel/io.h>
 #include <kernel/fs.h>
 #include <kernel/proc.h>
+#include <kernel/programs.h>
 #include <kernel/shell.h>
 #include <arch/x86.h>
+#include <kernel/gfx.h>
+#include <kernel/input.h>
+#include <kernel/blockdev.h>
+#include <kernel/sfs.h>
+#include <kernel/wm.h>
 
-#define SIFAROS_VERSION "0.1.0"
 
 static struct bootinfo boot_copy;
 
@@ -35,8 +41,8 @@ static void banner(void)
     kprintf("  ___) | |  _| (_| | |   | |_| |___) |\n");
     kprintf(" |____/|_|_|  \\__,_|_|    \\___/|____/\n");
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
-    kprintf("\nSifarOS %s - a small operating system built from scratch\n\n",
-            SIFAROS_VERSION);
+    kprintf("\n%s %s - an operating system built from scratch\n\n",
+            SIFAROS_NAME, SIFAROS_VERSION);
 
     cpu_identify(vendor, brand);
     kprintf("cpu    : %s (%s)\n", brand[0] ? brand : "unknown", vendor);
@@ -161,14 +167,15 @@ static void status_thread(void *arg)
                   (uint32_t)(((((uint64_t)pmm_used_frames() * PAGE_SIZE) % MB) * 10) / MB),
                   (uint32_t)(((uint64_t)pmm_total_frames() * PAGE_SIZE) / MB),
                   (uint32_t)(used / KB));
-        vga_status(line);
+        if (!gfx_available())
+            vga_status(line);
         thread_sleep_ms(500);
     }
 }
 
 void kmain(struct bootinfo *info)
 {
-    console_init();
+    console_init(info ? !info->fb_present : 1);
 
     if (!info || info->magic != BOOTINFO_MAGIC) {
         kprintf("kernel: bad boot information block\n");
@@ -182,7 +189,9 @@ void kmain(struct bootinfo *info)
     idt_init();
     fault_init();
     pic_init();
-    kprintf("cpu    : GDT, IDT and PIC installed\n");
+    fpu_init();
+    kprintf("cpu    : GDT, IDT, PIC and %s floating point installed\n",
+            fpu_sse() ? "SSE" : "x87");
 
     pmm_init(&boot_copy);
     report_memory(&boot_copy);
@@ -193,14 +202,48 @@ void kmain(struct bootinfo *info)
     kheap_init();
     kprintf("heap   : ready\n");
 
+    if (gfx_init(&boot_copy) == 0) {
+        fbcon_init();
+        console_attach_screen();
+        kprintf("video  : %ux%u at %u bpp, framebuffer %p\n",
+                boot_copy.fb_width, boot_copy.fb_height, boot_copy.fb_bpp,
+                (void *)boot_copy.fb_addr);
+    } else {
+        kprintf("video  : no VESA framebuffer, staying in text mode\n");
+    }
+
     timer_init(100);
     keyboard_init();
+    mouse_init();
+    if (gfx_available())
+        mouse_set_bounds(gfx_width(), gfx_height());
     kprintf("timer  : PIT at %u Hz\n", timer_hz());
-    kprintf("input  : PS/2 keyboard and COM1 serial console\n");
+    kprintf("input  : PS/2 keyboard%s and COM1 serial console\n",
+            mouse_present() ? ", PS/2 mouse" : "");
 
+    proc_init();
     vfs_init();
-    seed_filesystem();
-    kprintf("fs     : ramfs mounted at /, %u nodes\n", vfs_node_count());
+
+    if (ata_init() == 0) {
+        struct blockdev *disk = ata_device();
+
+        kprintf("disk   : %s, %u MiB\n", ata_model(), disk->sectors / 2048);
+
+        if (sfs_mount(disk, SFS_PARTITION_LBA) == 0) {
+            uint64_t total = 0, free_bytes = 0;
+
+            sfs_stats(&total, &free_bytes, NULL);
+            kprintf("fs     : SifarFS \"%s\" mounted at /, %u MiB total, %u MiB free\n",
+                    sfs_label(), (uint32_t)(total / MB), (uint32_t)(free_bytes / MB));
+        } else {
+            kprintf("fs     : no SifarFS on disk, falling back to ram\n");
+            seed_filesystem();
+        }
+    } else {
+        kprintf("disk   : no ATA drive found\n");
+        seed_filesystem();
+    }
+    kprintf("fs     : %u nodes in the tree\n", vfs_node_count());
 
     syscall_init();
     kprintf("syscall: int 0x80 gate installed\n");
@@ -215,9 +258,25 @@ void kmain(struct bootinfo *info)
     kprintf("\nboot complete in %u ms\n", (uint32_t)timer_ms());
     print_motd();
 
+    /* Hand the screen over to the window system and start the desktop. */
+    if (wm_init() == 0) {
+        const char *args[] = { "desktop" };
+        int pid;
+
+        wm_start();
+        pid = proc_spawn("/apps/desktop", 1, args);
+        if (pid < 0) {
+            console_set_screen_output(1);
+            kprintf("desktop: /apps/desktop did not start (error %d)\n", pid);
+        } else {
+            kprintf("desktop: started as process %d\n", pid);
+        }
+    }
+
     /* Thread 0 becomes the idle task: reap dead threads and wait for work. */
     for (;;) {
         sched_reap();
+        proc_reap();
         __asm__ volatile("sti; hlt");
     }
 }

@@ -1,23 +1,30 @@
 ; ============================================================================
 ; SifarOS stage 2 loader
 ;
-; Runs in 16-bit real mode at 0x7E00.  Responsibilities:
+; Runs in 16-bit real mode at 0x7E00.  Everything that needs the BIOS has to
+; happen here, because once we are in protected mode the BIOS is gone:
+;
 ;   1. ask the BIOS for the physical memory map (int 15h, EAX=E820h)
-;   2. enable the A20 gate so we can reach memory above 1 MiB
-;   3. read the kernel image off the boot disk into 0x00010000
-;   4. install a flat GDT, switch the CPU into 32-bit protected mode
-;   5. jump to the kernel with EBX pointing at the boot information block
+;   2. copy the 8x16 VGA ROM font out of the video BIOS
+;   3. enable the A20 gate so we can reach memory above 1 MiB
+;   4. read the kernel off the boot disk into 0x00010000
+;   5. find and set a 32-bit VESA linear framebuffer mode
+;   6. install a flat GDT and switch the CPU into 32-bit protected mode
+;   7. jump to the kernel with EBX pointing at the boot information block
 ; ============================================================================
 [BITS 16]
 [ORG 0x7E00]
 
 KERNEL_LBA      equ 9                   ; sector 0 = stage1, 1..8 = stage2
-KERNEL_SECTORS  equ 512                 ; 256 KiB reserved for the kernel
+KERNEL_SECTORS  equ 1024                ; 512 KiB reserved for the kernel
 KERNEL_SEG      equ 0x1000              ; -> physical 0x00010000
 CHUNK_SECTORS   equ 64                  ; per int 13h call (32 KiB)
 
 BOOTINFO_ADDR   equ 0x8000              ; boot information block
 MMAP_ADDR       equ 0x9000              ; E820 entries (24 bytes each)
+VBE_INFO        equ 0xA000              ; VBE controller information block
+MODE_INFO       equ 0xA200              ; VBE mode information block
+FONT_ADDR       equ 0xB000              ; 4 KiB of 8x16 glyph bitmaps
 BOOTINFO_MAGIC  equ 0x53464F53          ; "SFOS"
 
 stage2_start:
@@ -27,22 +34,39 @@ stage2_start:
     call    print
 
     call    detect_memory
+    call    copy_rom_font
     call    enable_a20
     call    load_kernel
 
-    ; ---- fill in the boot information block --------------------------------
-    mov     di, BOOTINFO_ADDR
-    mov     dword [di + 0], BOOTINFO_MAGIC
-    movzx   eax, word [mmap_count]
-    mov     dword [di + 4], eax
-    mov     dword [di + 8], MMAP_ADDR
-    movzx   eax, byte [boot_drive]
-    mov     dword [di + 12], eax
-    mov     dword [di + 16], KERNEL_LBA
-    mov     dword [di + 20], KERNEL_SECTORS
-
-    mov     si, msg_pmode
+    mov     si, msg_video
     call    print
+    call    setup_video                 ; from here on, no more BIOS text output
+
+    ; ---- fill in the boot information block --------------------------------
+    xor     ax, ax
+    mov     es, ax
+    mov     di, BOOTINFO_ADDR
+    mov     dword [es:di + 0], BOOTINFO_MAGIC
+    movzx   eax, word [mmap_count]
+    mov     dword [es:di + 4], eax
+    mov     dword [es:di + 8], MMAP_ADDR
+    movzx   eax, byte [boot_drive]
+    mov     dword [es:di + 12], eax
+    mov     dword [es:di + 16], KERNEL_LBA
+    mov     dword [es:di + 20], KERNEL_SECTORS
+    mov     eax, [fb_addr]
+    mov     dword [es:di + 24], eax
+    movzx   eax, word [fb_width]
+    mov     dword [es:di + 28], eax
+    movzx   eax, word [fb_height]
+    mov     dword [es:di + 32], eax
+    movzx   eax, word [fb_pitch]
+    mov     dword [es:di + 36], eax
+    movzx   eax, byte [fb_bpp]
+    mov     dword [es:di + 40], eax
+    movzx   eax, byte [fb_ok]
+    mov     dword [es:di + 44], eax
+    mov     dword [es:di + 48], FONT_ADDR
 
     ; ---- into protected mode ----------------------------------------------
     cli
@@ -82,6 +106,34 @@ detect_memory:
     jnz     .loop
 .done:
     mov     [mmap_count], bp
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
+; The video BIOS carries the 8x16 text font in ROM.  int 10h/1130h hands us a
+; pointer to it; the kernel uses those glyphs to draw text in graphics mode.
+; ---------------------------------------------------------------------------
+copy_rom_font:
+    pusha
+    push    es
+    push    ds
+
+    mov     ax, 0x1130
+    mov     bh, 0x06                    ; 8x16 ROM font
+    int     0x10                        ; returns ES:BP
+
+    mov     ax, es
+    mov     ds, ax
+    mov     si, bp
+    xor     ax, ax
+    mov     es, ax
+    mov     di, FONT_ADDR
+    mov     cx, 4096 / 2
+    cld
+    rep movsw
+
+    pop     ds
+    pop     es
     popa
     ret
 
@@ -141,7 +193,114 @@ load_kernel:
     hlt
     jmp     .hang
 
+; ---------------------------------------------------------------------------
+; Find a 32 bit linear framebuffer mode and switch to it.
+;
+; We walk the VBE mode list once per entry in want_modes, so the first
+; resolution the card actually supports wins.
+; ---------------------------------------------------------------------------
+setup_video:
+    pusha
+
+    xor     ax, ax
+    mov     es, ax
+    mov     di, VBE_INFO
+    mov     dword [es:di], 'VBE2'       ; ask for VBE 2.0 style information
+    mov     ax, 0x4F00
+    int     0x10
+    cmp     ax, 0x004F
+    jne     .fail
+
+    mov     si, want_modes
+.next_wanted:
+    mov     ax, [si]
+    test    ax, ax
+    jz      .fail                       ; ran out of preferred resolutions
+    mov     [want_w], ax
+    mov     ax, [si + 2]
+    mov     [want_h], ax
+    push    si
+
+    ; walk the mode list for this resolution
+    xor     ax, ax
+    mov     es, ax
+    mov     bx, [es:VBE_INFO + 14]      ; far pointer to the mode list
+    mov     ax, [es:VBE_INFO + 16]
+    mov     fs, ax
+    mov     si, bx
+.next_mode:
+    mov     cx, [fs:si]
+    add     si, 2
+    cmp     cx, 0xFFFF
+    je      .no_match
+
+    push    si
+    push    cx
+    xor     ax, ax
+    mov     es, ax
+    mov     di, MODE_INFO
+    mov     ax, 0x4F01
+    int     0x10
+    pop     cx
+    pop     si
+    cmp     ax, 0x004F
+    jne     .next_mode
+
+    xor     ax, ax
+    mov     es, ax
+    mov     ax, [es:MODE_INFO + 0]      ; mode attributes
+    test    ax, 0x0080                  ; linear framebuffer available?
+    jz      .next_mode
+    test    ax, 0x0010                  ; graphics (not text) mode?
+    jz      .next_mode
+    cmp     byte [es:MODE_INFO + 25], 32
+    jne     .next_mode
+    mov     ax, [es:MODE_INFO + 18]     ; width
+    cmp     ax, [want_w]
+    jne     .next_mode
+    mov     ax, [es:MODE_INFO + 20]     ; height
+    cmp     ax, [want_h]
+    jne     .next_mode
+
+    ; this one will do
+    mov     bx, cx
+    or      bx, 0x4000                  ; use the linear framebuffer
+    mov     ax, 0x4F02
+    int     0x10
+    cmp     ax, 0x004F
+    jne     .next_mode
+
+    xor     ax, ax
+    mov     es, ax
+    mov     ax, [es:MODE_INFO + 16]
+    mov     [fb_pitch], ax
+    mov     ax, [es:MODE_INFO + 18]
+    mov     [fb_width], ax
+    mov     ax, [es:MODE_INFO + 20]
+    mov     [fb_height], ax
+    mov     al, [es:MODE_INFO + 25]
+    mov     [fb_bpp], al
+    mov     eax, [es:MODE_INFO + 40]
+    mov     [fb_addr], eax
+    mov     byte [fb_ok], 1
+
+    pop     si
+    popa
+    ret
+
+.no_match:
+    pop     si
+    add     si, 4
+    jmp     .next_wanted
+
+.fail:
+    mov     byte [fb_ok], 0
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
 ; Mirror everything to the screen and to COM1, which stage 1 already set up.
+; ---------------------------------------------------------------------------
 serial_putc:
     push    dx
     push    ax
@@ -223,9 +382,26 @@ dap_lba:    dq  0
 boot_drive: db 0
 mmap_count: dw 0
 
+; Preferred resolutions, best first.  Terminated by a zero width.
+want_modes:
+    dw 1024, 768
+    dw 1280, 800
+    dw 800, 600
+    dw 640, 480
+    dw 0, 0
+
+want_w:     dw 0
+want_h:     dw 0
+fb_addr:    dd 0
+fb_pitch:   dw 0
+fb_width:   dw 0
+fb_height:  dw 0
+fb_bpp:     db 0
+fb_ok:      db 0
+
 msg_stage2: db "SifarOS: stage2", 13, 10, 0
 msg_kerr:   db "stage2: kernel read error", 13, 10, 0
-msg_pmode:  db "SifarOS: entering protected mode", 13, 10, 0
+msg_video:  db "SifarOS: setting graphics mode", 13, 10, 0
 msg_crlf:   db 13, 10, 0
 
 times (8*512)-($-$$) db 0               ; pad to exactly 8 sectors

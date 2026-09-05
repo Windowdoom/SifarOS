@@ -13,6 +13,16 @@ struct bootinfo {
     uint32_t boot_drive;
     uint32_t kernel_lba;
     uint32_t kernel_sectors;
+
+    /* Video mode chosen by stage 2 (fb_present is zero if VBE was refused). */
+    uint32_t fb_addr;
+    uint32_t fb_width;
+    uint32_t fb_height;
+    uint32_t fb_pitch;          /* bytes per scanline */
+    uint32_t fb_bpp;
+    uint32_t fb_present;
+
+    uint32_t font_addr;         /* 4 KiB of 8x16 glyphs from the video BIOS */
 } PACKED;
 
 /* One int 15h/E820 descriptor. */

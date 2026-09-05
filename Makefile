@@ -2,9 +2,12 @@
 # SifarOS build
 #
 #   make            build build/sifaros.img
-#   make run        boot the image in QEMU with a graphical window
-#   make run-serial boot headless with the console on stdio
-#   make test       run the automated boot/smoke test
+#   make run        boot the image in QEMU
+#   make run-serial boot headless with the kernel console on stdio
+#   make test       serial test suite: boot, filesystem, processes, persistence
+#   make test-gui   drive the desktop with mouse and keyboard, check the frames
+#   make shot       save a screenshot of the booted desktop
+#   make debug      boot stopped, waiting for gdb on localhost:1234
 #   make clean
 # ============================================================================
 
@@ -22,12 +25,17 @@ IMAGE      := $(BUILD)/sifaros.img
 # Disk layout, mirrored in boot/stage2.asm
 STAGE2_SECTORS := 8
 KERNEL_LBA     := 9
-KERNEL_SECTORS := 512
-IMAGE_SECTORS  := 4096          # 2 MiB disk
+KERNEL_SECTORS := 1024
+FS_LBA         := 2048          # the filesystem starts here
+IMAGE_SECTORS  := 131072        # 64 MiB disk
 
+# -MMD -MP make the compiler emit header dependencies next to each object, so
+# editing a header rebuilds everything that includes it.  Without this, a
+# changed struct silently leaves stale objects behind and the layouts stop
+# agreeing between translation units.
 CFLAGS := -m32 -std=gnu11 -ffreestanding -fno-builtin -fno-stack-protector \
           -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra -Werror \
-          -Wno-unused-parameter -O2 -g -Iinclude
+          -Wno-unused-parameter -O2 -g -MMD -MP -Iinclude
 ASFLAGS := -m32 -c -Iinclude
 LDFLAGS := -m elf_i386 -T linker.ld -nostdlib -z noexecstack
 
@@ -37,22 +45,34 @@ OBJECTS   := $(patsubst %.c,$(BUILD)/%.o,$(C_SOURCES)) \
              $(patsubst %.S,$(BUILD)/%.o,$(S_SOURCES))
 
 # ---- user space ------------------------------------------------------------
-# Each program becomes a flat binary and is then wrapped in an object file so
-# the kernel can carry it around and load it into ring 3 on demand.
-USER_PROGRAMS := hello counter faulter
-USER_DIR      := $(BUILD)/user
-USER_BLOBS    := $(patsubst %,$(USER_DIR)/%_blob.o,$(USER_PROGRAMS))
-USER_CFLAGS   := -m32 -std=gnu11 -ffreestanding -fno-builtin -fno-stack-protector \
-                 -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra -Werror \
-                 -Wno-unused-parameter -Os -Iinclude -Iuser
+# Applications are ordinary ELF executables linked against libsifar and the
+# widget toolkit.  A couple of them are also embedded in the kernel image so
+# there is always something to run even without a disk.
+USER_DIR    := $(BUILD)/user
+USER_LIB    := $(USER_DIR)/lib
+APPS        := $(patsubst user/apps/%.c,%,$(wildcard user/apps/*.c))
+EMBEDDED    := hello counter faulter
+USER_BLOBS  := $(patsubst %,$(USER_DIR)/%_blob.o,$(EMBEDDED))
+APP_ELVES   := $(patsubst %,$(USER_DIR)/%.elf,$(APPS))
 
-.PHONY: all clean run run-serial test debug dirs
+USER_CFLAGS := -m32 -std=gnu11 -ffreestanding -fno-builtin -fno-stack-protector \
+               -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra -Werror \
+               -Wno-unused-parameter -Os -MMD -MP -Iinclude -Iuser/lib
+LIB_OBJECTS := $(USER_LIB)/crt0.o $(USER_LIB)/sifar.o $(USER_LIB)/ui.o
+
+# What goes into the filesystem image.
+FS_CONTENT := \
+	$(foreach app,$(APPS),--exec $(USER_DIR)/$(app).elf:/apps/$(app)) \
+	--protected '/etc/motd:Welcome to SifarOS.\n' \
+	--protected '/etc/release:SifarOS 0.2.0 (i386)\n' \
+	--text '/home/readme.txt:This file lives on the disk and survives a reboot.\n\nOpen it in the text editor, change it, and it will still be here\nafter the next boot.\n' \
+	--text '/docs/about.txt:SifarOS was written from scratch: bootloader, kernel, drivers,\nfilesystem, window system and every application you can see.\n'
+
+.PHONY: all clean run run-serial test test-gui test-all debug shot apps
 
 all: $(IMAGE)
 
-dirs:
-	@mkdir -p $(BUILD)
-
+# ---- kernel objects --------------------------------------------------------
 $(BUILD)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -61,29 +81,29 @@ $(BUILD)/%.o: %.S
 	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) $< -o $@
 
-$(USER_DIR)/ulib.o: user/ulib.c user/ulib.h
-	@mkdir -p $(USER_DIR)
-	$(CC) $(USER_CFLAGS) -c $< -o $@
+apps: $(APP_ELVES)
 
-$(USER_DIR)/crt0.o: user/crt0.S
-	@mkdir -p $(USER_DIR)
+# ---- user space objects ----------------------------------------------------
+$(USER_LIB)/crt0.o: user/lib/crt0.S
+	@mkdir -p $(USER_LIB)
 	$(CC) -m32 -c $< -o $@
 
-$(USER_DIR)/%.o: user/%.c user/ulib.h
+$(USER_LIB)/%.o: user/lib/%.c
+	@mkdir -p $(USER_LIB)
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+$(USER_DIR)/%.o: user/apps/%.c
 	@mkdir -p $(USER_DIR)
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
-$(USER_DIR)/%.elf: $(USER_DIR)/%.o $(USER_DIR)/crt0.o $(USER_DIR)/ulib.o user/user.ld
+$(USER_DIR)/%.elf: $(USER_DIR)/%.o $(LIB_OBJECTS) user/user.ld
 	$(LD) -m elf_i386 -T user/user.ld -nostdlib -z noexecstack -o $@ \
-		$(USER_DIR)/crt0.o $< $(USER_DIR)/ulib.o
-
-$(USER_DIR)/%.bin: $(USER_DIR)/%.elf
-	$(OBJCOPY) -O binary $< $@
+		$(USER_LIB)/crt0.o $< $(USER_LIB)/sifar.o $(USER_LIB)/ui.o
 
 # objcopy derives the symbol names from the file name, so run it in the
-# directory to keep them short: _binary_hello_bin_start and friends.
-$(USER_DIR)/%_blob.o: $(USER_DIR)/%.bin
-	cd $(USER_DIR) && $(OBJCOPY) -I binary -O elf32-i386 -B i386 $*.bin $*_blob.o
+# directory to keep them short: _binary_hello_elf_start and friends.
+$(USER_DIR)/%_blob.o: $(USER_DIR)/%.elf
+	cd $(USER_DIR) && $(OBJCOPY) -I binary -O elf32-i386 -B i386 $*.elf $*_blob.o
 
 $(KERNEL_ELF): $(OBJECTS) $(USER_BLOBS) linker.ld
 	@mkdir -p $(dir $@)
@@ -104,11 +124,24 @@ $(BUILD)/stage2.bin: boot/stage2.asm
 	@mkdir -p $(dir $@)
 	$(NASM) -f bin $< -o $@
 
-$(IMAGE): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(KERNEL_BIN)
+# ---- filesystem ------------------------------------------------------------
+# The disk carries a real SifarFS filesystem holding the applications and the
+# starting contents of the home directory.
+FS_IMAGE  := $(BUILD)/fs.img
+FS_SIZE   := 56M
+
+$(FS_IMAGE): tools/mkfs.py $(APP_ELVES)
+	@mkdir -p $(BUILD)
+	python3 tools/mkfs.py --output $@ --size $(FS_SIZE) --label SifarOS \
+		--dir /apps --dir /home --dir /etc --dir /tmp --dir /docs \
+		$(FS_CONTENT)
+
+$(IMAGE): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(KERNEL_BIN) $(FS_IMAGE)
 	@dd if=/dev/zero of=$@ bs=512 count=$(IMAGE_SECTORS) status=none
 	@dd if=$(BUILD)/stage1.bin of=$@ bs=512 seek=0 conv=notrunc status=none
 	@dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 conv=notrunc status=none
 	@dd if=$(KERNEL_BIN) of=$@ bs=512 seek=$(KERNEL_LBA) conv=notrunc status=none
+	@dd if=$(FS_IMAGE) of=$@ bs=512 seek=$(FS_LBA) conv=notrunc status=none
 	@echo "disk image: $@"
 
 run: $(IMAGE)
@@ -120,8 +153,20 @@ run-serial: $(IMAGE)
 test: $(IMAGE)
 	@tools/test.sh
 
+test-gui: $(IMAGE)
+	@tools/test-gui.sh
+
+test-all: test test-gui
+
 debug: $(IMAGE)
 	@tools/run.sh --debug
 
+shot: $(IMAGE)
+	@tools/shot.sh $(BUILD)/screen.png 10
+
 clean:
 	rm -rf $(BUILD)
+
+# Header dependencies emitted by the compiler.
+DEPS := $(OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d) $(patsubst %,$(USER_DIR)/%.d,$(APPS))
+-include $(DEPS)

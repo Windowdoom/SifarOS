@@ -5,18 +5,19 @@
  * file by objcopy, which is where these _binary_* symbols come from.
  */
 #include <kernel/proc.h>
+#include <kernel/programs.h>
 #include <kernel/string.h>
 
 #define DECLARE_PROGRAM(sym)                        \
-    extern const uint8_t _binary_##sym##_bin_start[]; \
-    extern const uint8_t _binary_##sym##_bin_end[]
+    extern const uint8_t _binary_##sym##_elf_start[]; \
+    extern const uint8_t _binary_##sym##_elf_end[]
 
 DECLARE_PROGRAM(hello);
 DECLARE_PROGRAM(counter);
 DECLARE_PROGRAM(faulter);
 
 #define PROGRAM(sym, text)                          \
-    { #sym, text, _binary_##sym##_bin_start, _binary_##sym##_bin_end }
+    { #sym, text, _binary_##sym##_elf_start, _binary_##sym##_elf_end }
 
 static const struct embedded_program programs[] = {
     PROGRAM(hello,   "greets you from ring 3 and touches the filesystem"),

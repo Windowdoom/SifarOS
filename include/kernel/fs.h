@@ -45,6 +45,12 @@ struct fs_node *vfs_lookup(const char *cwd, const char *path);
 int             vfs_path_of(const struct fs_node *node, char *out, size_t size);
 
 struct fs_node *vfs_create(const char *cwd, const char *path, uint8_t type);
+
+/* Used by filesystem drivers when grafting an existing tree onto the VFS. */
+struct fs_node *vfs_node_new(const char *name, uint8_t type,
+                             const struct fs_ops *ops, void *backend, size_t size);
+void            vfs_attach(struct fs_node *parent, struct fs_node *child);
+void            vfs_set_root(struct fs_node *node);
 int             vfs_unlink(const char *cwd, const char *path);
 
 ssize_t         vfs_read(struct fs_node *node, size_t offset, void *buf, size_t len);

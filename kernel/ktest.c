@@ -13,6 +13,13 @@
 #include <kernel/sched.h>
 #include <arch/x86.h>
 #include <kernel/io.h>
+#include <kernel/gfx.h>
+#include <kernel/elf.h>
+#include <kernel/proc.h>
+#include <kernel/programs.h>
+#include <kernel/sfs.h>
+#include <kernel/blockdev.h>
+#include <kernel/wm.h>
 
 static int checks_run;
 static int checks_failed;
@@ -123,7 +130,9 @@ static void test_pmm(void)
 static void test_paging(void)
 {
     phys_addr_t frame = pmm_alloc_frame();
-    virt_addr_t scratch = 0xE0000000u;
+    /* Somewhere in the kernel half that nothing else claims: not the heap
+       window and well clear of the framebuffer mapping. */
+    virt_addr_t scratch = 0xEF000000u;
     volatile uint32_t *probe = (volatile uint32_t *)scratch;
 
     suite("paging");
@@ -338,6 +347,234 @@ static void test_interrupts(void)
     check(timer_hz() == 100, "the PIT runs at the configured rate");
 }
 
+/* ------------------------------------------------------ new subsystems */
+
+static void test_graphics(void)
+{
+    uint32_t pixels[32 * 16];
+    struct gfx_surface surface;
+
+    suite("graphics");
+    gfx_surface_init(&surface, pixels, 32, 16, 32);
+
+    gfx_clear(&surface, RGB(0, 0, 0));
+    check(pixels[0] == RGB(0, 0, 0), "clear fills the surface");
+
+    gfx_fill_rect(&surface, 4, 4, 8, 8, RGB(255, 0, 0));
+    check(pixels[4 * 32 + 4] == RGB(255, 0, 0), "fill_rect paints inside");
+    check(pixels[3 * 32 + 4] == RGB(0, 0, 0), "fill_rect leaves the outside alone");
+
+    gfx_clip_set(&surface, 16, 0, 16, 16);
+    gfx_fill_rect(&surface, 0, 0, 32, 16, RGB(0, 255, 0));
+    check(pixels[0] == RGB(0, 0, 0), "clipping keeps drawing out of the left half");
+    check(pixels[20] == RGB(0, 255, 0), "clipping still paints the right half");
+    gfx_clip_reset(&surface);
+
+    /* Half transparent white over black lands halfway between. */
+    gfx_clear(&surface, RGB(0, 0, 0));
+    gfx_blend_rect(&surface, 0, 0, 4, 4, RGBA(255, 255, 255, 128));
+    check(COLOR_R(pixels[0]) > 120 && COLOR_R(pixels[0]) < 136,
+          "alpha blending mixes evenly");
+
+    check(gfx_text_width("hello", 1) == 5 * GLYPH_W, "text width counts glyphs");
+    check(gfx_font()[('A' * GLYPH_H) + 2] != 0, "the ROM font has glyph data");
+}
+
+static void test_elf(void)
+{
+    const struct embedded_program *program = program_find("hello");
+
+    suite("elf");
+    check(program != NULL, "an embedded program is present");
+    if (!program)
+        return;
+
+    check(elf_is_valid(program->start, (size_t)(program->end - program->start)),
+          "the embedded image is a valid 32 bit ELF executable");
+    check(!elf_is_valid((const uint8_t *)"not an elf at all", 17),
+          "rubbish is rejected");
+
+    {
+        const struct elf32_ehdr *header = (const struct elf32_ehdr *)program->start;
+
+        check(header->entry >= USER_MIN && header->entry < USER_MAX,
+              "the entry point is inside the user address range");
+        check(header->phnum > 0, "the image has program headers");
+    }
+}
+
+static void test_processes(void)
+{
+    const struct embedded_program *program = program_find("hello");
+    int pid, code = -1;
+    int before = proc_count();
+
+    suite("processes");
+    check(proc_current() != NULL, "there is always a current process");
+    check(proc_kernel()->pid == 0, "the kernel is process zero");
+
+    if (!program)
+        return;
+
+    pid = proc_spawn_image("ktest-hello", program->start,
+                           (size_t)(program->end - program->start), 1,
+                           (const char *const[]){ "ktest-hello" });
+    check(pid > 0, "a program can be loaded and started");
+    if (pid <= 0)
+        return;
+
+    check(proc_by_pid(pid) != NULL, "the new process is in the table");
+    check(proc_count() > before, "the process count went up");
+
+    check(proc_wait(pid, &code) == 0, "waiting for it succeeds");
+    check(code == 7, "its exit status comes back");
+    check(proc_by_pid(pid) == NULL, "the process is gone once reaped");
+}
+
+static void test_address_spaces(void)
+{
+    struct addr_space space;
+    phys_addr_t frame;
+    virt_addr_t user_page = USER_MIN + 0x10000;
+
+    suite("address spaces");
+    check(vmm_space_create(&space) == 0, "a new address space can be created");
+    check(space.pd != NULL && space.pd_phys != 0, "it has a page directory");
+
+    /* The kernel half has to be visible from every space. */
+    check(space.pd[0] == vmm_kernel_space()->pd[0],
+          "the identity map is shared into it");
+    check(space.pd[KERNEL_HEAP_BASE >> 22] == vmm_kernel_space()->pd[KERNEL_HEAP_BASE >> 22],
+          "the kernel heap is shared into it");
+    check(space.pd[USER_MIN >> 22] == 0, "the user half starts empty");
+
+    frame = pmm_alloc_frame();
+    check(frame != 0, "got a frame for a user page");
+    check(vmm_map_in(&space, user_page, frame, PTE_PRESENT | PTE_WRITE | PTE_USER) == 0,
+          "mapping into another space works");
+    check(vmm_translate_in(&space, user_page) == frame,
+          "the other space translates it");
+    check(vmm_translate_in(vmm_kernel_space(), user_page) == 0,
+          "the kernel space does not see the user mapping");
+
+    check(space.pd[user_page >> 22] & PTE_USER,
+          "the directory entry carries the user bit");
+
+    vmm_space_destroy(&space);
+    check(space.pd == NULL, "destroying the space releases it");
+}
+
+static void test_disk(void)
+{
+    struct blockdev *disk = ata_device();
+    uint8_t *first;
+    uint8_t *second;
+
+    suite("disk");
+    if (!disk) {
+        check(0, "an ATA disk is attached");
+        return;
+    }
+
+    check(disk->sectors > 0, "the disk reports a size");
+    check(sfs_mounted(), "SifarFS is mounted");
+
+    first = (uint8_t *)kmalloc(SECTOR_SIZE);
+    second = (uint8_t *)kmalloc(SECTOR_SIZE);
+    if (!first || !second) {
+        check(0, "scratch buffers");
+        kfree(first);
+        kfree(second);
+        return;
+    }
+
+    check(disk->read(disk, 0, 1, first) == 0, "sector zero reads");
+    check(first[510] == 0x55 && first[511] == 0xAA,
+          "the boot sector signature is on the disk");
+
+    /* Round trip through a sector well past the filesystem. */
+    {
+        uint32_t scratch_lba = disk->sectors - 1;
+
+        memset(second, 0, SECTOR_SIZE);
+        check(disk->read(disk, scratch_lba, 1, second) == 0, "a spare sector reads");
+        for (int i = 0; i < SECTOR_SIZE; i++)
+            second[i] = (uint8_t)(i ^ 0x5A);
+        check(disk->write(disk, scratch_lba, 1, second) == 0, "it writes back");
+
+        memset(second, 0, SECTOR_SIZE);
+        check(disk->read(disk, scratch_lba, 1, second) == 0, "and reads again");
+        {
+            int intact = 1;
+
+            for (int i = 0; i < SECTOR_SIZE; i++) {
+                if (second[i] != (uint8_t)(i ^ 0x5A))
+                    intact = 0;
+            }
+            check(intact, "what came back is what went out");
+        }
+    }
+
+    kfree(first);
+    kfree(second);
+}
+
+static void test_persistence(void)
+{
+    static const char payload[] = "ktest wrote this to the disk\n";
+    char buffer[64];
+    ssize_t n;
+
+    suite("persistence");
+    if (!sfs_mounted()) {
+        check(0, "a disk filesystem is mounted");
+        return;
+    }
+
+    check(vfs_write_file("/tmp/ktest-disk.txt", payload, sizeof(payload) - 1) == 0,
+          "a file can be written to the disk filesystem");
+
+    n = vfs_read_file("/tmp/ktest-disk.txt", buffer, sizeof(buffer) - 1);
+    buffer[n > 0 ? n : 0] = '\0';
+    check(n == (ssize_t)(sizeof(payload) - 1) && strcmp(buffer, payload) == 0,
+          "it reads back byte for byte");
+
+    check(vfs_unlink(NULL, "/tmp/ktest-disk.txt") == 0, "and it can be removed");
+}
+
+static void test_floating_point(void)
+{
+    volatile double a = 3.5;
+    volatile double b = 1.25;
+
+    suite("floating point");
+    check(fpu_present(), "the FPU is available");
+    check((int)(a * b * 100.0) == 437, "arithmetic works in the kernel");
+
+    /* The FPU state has to survive a trip through the scheduler. */
+    a = 12345.75;
+    sched_yield();
+    check((int)(a * 2.0) == 24691, "registers survive a context switch");
+}
+
+static void test_window_system(void)
+{
+    struct gui_window_desc list[GUI_MAX_WINDOWS];
+    int count;
+
+    suite("window system");
+    check(wm_running() == (gfx_available() ? 1 : 0),
+          "the window server matches the display state");
+
+    count = wm_list_windows(list, GUI_MAX_WINDOWS);
+    check(count >= 0, "the window list can be read");
+
+    if (count > 0) {
+        check(list[0].id != 0, "listed windows have identifiers");
+        check(list[0].title[0] != '\0', "listed windows have titles");
+    }
+}
+
 int ktest_run(void)
 {
     uint64_t started = timer_ms();
@@ -356,6 +593,14 @@ int ktest_run(void)
     test_fs();
     test_sched();
     test_interrupts();
+    test_floating_point();
+    test_graphics();
+    test_address_spaces();
+    test_elf();
+    test_processes();
+    test_disk();
+    test_persistence();
+    test_window_system();
 
     kprintf("\nselftest: %d checks, %d passed, %d failed, %u ms\n\n",
             checks_run, checks_run - checks_failed, checks_failed,

@@ -1,126 +1,140 @@
 # SifarOS
 
-A 32-bit operating system for x86, written from scratch. No Linux, no GRUB, no
-C library, no existing kernel underneath it. The boot sector, the loader, the
-kernel, the drivers, the memory manager, the scheduler, the filesystem, the
-shell and the user programs in this repository are all original code, and the
-only thing the machine does for us is the BIOS call that reads the first sector
-off the disk.
+An operating system for 32-bit x86, written from scratch. No Linux, no GRUB, no
+C library, no existing kernel underneath. The boot sector, the loader, the
+kernel, the drivers, the filesystem, the window server, the C library, the
+widget toolkit and every application in these screenshots are original code in
+this repository. The only thing the machine does for us is the one BIOS call
+that reads the first sector off the disk.
 
-![SifarOS booted in QEMU](docs/screenshot.png)
+![The SifarOS desktop](docs/screenshot-desktop.png)
 
-```
-sifar:/$ uname
-SifarOS 0.1.0 i386
-cpu: QEMU Virtual CPU version 2.5+ (GenuineIntel)
+## What it is
 
-sifar:/$ run hello
-hello: running in ring 3 as thread 6
-hello: sum of 1..1000 = 500500 (computed in user space)
-hello: read back /home/hello.txt -> written from ring 3 by hello
-[hello exited with status 7]
-```
+A machine boots into a graphical desktop. The desktop is a user-space process.
+So is the terminal, the file manager, the text editor, the system monitor and
+the game. Each one runs in ring 3 with its own address space and reaches the
+kernel only through `int 0x80`. The kernel composites their windows, routes
+the mouse and keyboard, schedules them preemptively, and keeps their files on a
+real filesystem on a real disk that survives a reboot.
 
-## What it does
+![Several applications at once](docs/screenshot-apps.png)
 
-**Boots itself.** A 512-byte master boot record loads a second stage, which
-asks the BIOS for the memory map, opens the A20 gate, reads the kernel off the
-disk, installs a GDT and switches the processor into 32-bit protected mode.
+## What is in it
 
-**Manages memory.** A bitmap allocator hands out 4 KiB physical frames based on
-what the BIOS reported. Paging is enabled with every frame of RAM identity
-mapped, and the kernel heap lives in its own virtual region that grows by
-mapping fresh frames on demand.
+**Boot.** A 512-byte master boot record loads a second stage, which asks the
+BIOS for the memory map, lifts the 8x16 font out of the video ROM, sets a
+32-bit VESA framebuffer mode, opens the A20 gate, loads the kernel and enters
+protected mode.
 
-**Runs threads.** A round-robin scheduler preempts on the timer interrupt.
-Threads sleep, yield, exit with a status and can be joined or killed. Context
-switching is a hand-written assembly routine that swaps kernel stacks.
+**Memory.** A bitmap allocator hands out physical frames. Paging gives every
+process its own address space, with the kernel's identity map and heap window
+shared into all of them through page tables allocated once at boot. The kernel
+heap grows by mapping fresh frames on demand; user processes grow theirs with
+`sbrk`.
 
-**Has a filesystem.** A VFS layer owns the directory tree and all path handling
-(including `.`, `..` and relative paths); a ramfs backend stores file contents
-in heap buffers that grow as they are written.
+**Processes and threads.** ELF executables are loaded from disk into a private
+address space and started in ring 3. A round-robin scheduler preempts on the
+timer interrupt, saves and restores the FPU/SSE register file per thread, and
+switches page directories on the way in. A fault in a program kills that
+program and nothing else.
 
-**Enforces privilege.** User programs are flat binaries built separately from
-the kernel, embedded into the kernel image, then loaded into pages marked
-user-accessible and started in ring 3. They reach the kernel only through
-`int 0x80`, and every pointer they pass is checked. A program that touches
-kernel memory is killed while the rest of the system keeps running.
+**Storage.** An ATA PIO driver talks to the disk; SifarFS sits on top with a
+superblock, a block bitmap, inodes and directories. `tools/mkfs.py` builds the
+filesystem image at build time, and everything written at runtime is still
+there after a reboot.
 
-**Talks to hardware.** VGA text mode with a status bar, a 16550 UART, the 8259
-interrupt controllers, the 8254 timer, a PS/2 keyboard with modifier handling,
-and the CMOS real time clock.
+**Graphics and windows.** A software compositor draws into a back buffer and
+pushes only the damaged rectangles to the card, because a full 1024x768 frame
+costs about 60 ms in emulation and a repainted text line costs one. Windows are
+buffers the kernel allocates and maps into the owning process; the server owns
+stacking, focus, decorations, dragging, resizing and the cursor.
 
-**Tests itself.** 84 assertions run inside the booted kernel covering strings,
-formatting, 64-bit division, the frame allocator, paging, the heap, the
-filesystem, the scheduler and interrupt delivery. `tools/test.sh` boots the
-image under QEMU, drives the shell over the serial line and checks 44
-end-to-end expectations on top of that.
+**Applications.** `libsifar` provides system calls, a heap, strings and
+formatting; the toolkit on top gives windows, buttons, text fields, lists,
+panels and an immediate-mode redraw loop. The applications are ordinary ELF
+binaries in `/apps`.
+
+| | |
+|---|---|
+| Terminal | a shell with 20+ commands, history and scrollback |
+| Files | browse, open, create folders, delete |
+| Text Editor | load, edit and save files that persist |
+| System Monitor | live memory, disk and process figures with a history graph |
+| Settings | desktop themes, written to a file the desktop watches |
+| Calculator | mouse or keyboard, floating point |
+| Clock | analogue face from the hardware clock |
+| Paint | brushes, palette, a canvas |
+| Snake | arrows or WASD |
+| About | what the system is made of |
 
 ## Building and running
 
 Requirements: `gcc` with 32-bit support (`gcc-multilib`), `binutils`, `nasm`,
-`make` and `qemu-system-i386`.
+`make`, `python3` and `qemu-system-i386`.
 
 ```sh
 make            # build build/sifaros.img
-make run        # boot it (graphical window, or serial if there is no display)
-make run-serial # boot it headless with the console on this terminal
-make test       # boot it and run the full automated test suite
+make run        # boot it
+make test       # boot it and run the serial test suite
+make test-gui   # boot it, drive the desktop with mouse and keyboard, check the frames
+make shot       # boot it and save a screenshot
 make debug      # boot it stopped, waiting for gdb on localhost:1234
 ```
 
-The image is a plain raw disk, so it also boots on real hardware written to a
-USB stick with `dd`, and under any other emulator.
-
-Quit QEMU with `Ctrl-A` then `X`.
+The image is a plain raw disk: it also boots on real hardware written to a USB
+stick with `dd`, given a BIOS or CSM.
 
 ## Using it
 
-The shell reads from the PS/2 keyboard and the serial line at the same time, so
-everything below works in either. Arrow keys move the cursor and walk the
-command history, `^C` cancels a line, `^L` clears the screen.
+Double click an icon, or open the launcher in the bottom left. Windows drag by
+their title bar, resize from the bottom right corner, minimise and close from
+the buttons on the right. The taskbar switches between them.
 
-| | |
-|---|---|
-| `help`, `uname`, `uptime`, `date` | system information |
-| `mem`, `heap`, `ps`, `kill`, `spawn` | memory and threads |
-| `ls`, `tree`, `cd`, `pwd`, `stat` | moving around the filesystem |
-| `cat`, `write`, `append`, `cp`, `rm`, `mkdir`, `touch`, `hexdump` | files |
-| `programs`, `run` | ring 3 programs |
-| `selftest` | the in-kernel test suite |
-| `reboot`, `halt` | leaving |
+In the terminal: `help` lists the commands, `run <app>` starts an application,
+`ls`, `cat`, `write`, `mkdir`, `rm` and `cp` work on the disk, `ps` and `mem`
+show what the system is doing, `dmesg` prints the boot log.
 
-Try `spawn 4` and then `ps` to watch preemption, or `run faulter` to watch the
-kernel kill a program that reaches for memory it does not own.
+There is also a kernel debug console on the serial line the whole time, with
+its own shell: `selftest` runs 132 in-kernel checks, `windows` lists the window
+server's state, `bench` times the graphics paths, `procs` lists processes.
+
+## Testing
+
+```
+make test       44 checks: boot, filesystem, processes, fault isolation,
+                the in-kernel suite, and a reboot to prove writes persisted
+make test-gui   15 checks: drives the desktop through QEMU's mouse and
+                keyboard and inspects the resulting frames
+```
+
+Both run against a real boot in QEMU. There is no mocking anywhere.
 
 ## Layout
 
 ```
-boot/        stage 1 boot sector and stage 2 protected mode loader
+boot/          stage 1 boot sector, stage 2 loader (memory map, VESA, protected mode)
 kernel/
-  arch/x86/  GDT, TSS, IDT, interrupt stubs, faults, PIC, PIT, CPUID, switching
-  dev/       VGA, serial, keyboard, RTC, console multiplexer
-  mm/        physical frame allocator, paging, kernel heap
-  fs/        VFS and the ramfs backend
-  sh/        the shell
-  lib/       strings, printf, 64-bit division
-  main.c     bring-up order
-  sched.c    the scheduler
-  syscall.c  the int 0x80 interface
-  proc.c     loading user programs
-  ktest.c    the in-kernel test suite
-user/        the ring 3 programs and their tiny runtime library
-include/     kernel and shared headers
-tools/       build, run and test scripts
-docs/        how it fits together
+  arch/x86/    GDT, TSS, IDT, ISRs, faults, PIC, PIT, FPU, CPUID, context switch
+  dev/         VESA console, serial, PS/2 keyboard and mouse, ATA, RTC
+  mm/          frame allocator, paging and address spaces, kernel heap
+  fs/          VFS, ramfs, SifarFS
+  gfx/         drawing primitives, clipping, text
+  gui/         window server and compositor
+  sh/          the serial debug shell
+  proc.c       processes; elf.c: loader; sched.c: scheduler; syscall.c: the ABI
+  ktest.c      132 in-kernel tests
+user/
+  lib/         libsifar and the widget toolkit
+  apps/        the applications
+tools/         build, run, screenshot and test scripts, mkfs
+docs/          architecture and build notes
 ```
 
-`docs/ARCHITECTURE.md` walks through the boot sequence, the memory map and each
-subsystem in more detail.
+`docs/ARCHITECTURE.md` explains how the pieces fit together.
 
 ## Limits
 
-It is honest about what it is: a single address space shared by every thread,
-one user program resident at a time, a filesystem that lives in RAM and starts
-over on every boot, no disk driver, no networking, no SMP, and 32-bit x86 only.
-Those are the next things to build, not accidents.
+32-bit x86 only. One disk, no partitions beyond the fixed layout. No network,
+no sound, no SMP, no swap, no dynamic linking. Windows are composited in
+software. These are the next things to build, not accidents.

@@ -3,9 +3,9 @@
  * expected outcome is that the CPU faults, the kernel kills this program, and
  * the shell keeps running.
  */
-#include "ulib.h"
+#include "sifar.h"
 
-int main(void)
+int main(int argc, char **argv)
 {
     volatile unsigned int *kernel_memory = (volatile unsigned int *)0x00010000;
 

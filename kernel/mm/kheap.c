@@ -11,8 +11,8 @@
 #include <kernel/string.h>
 #include <kernel/io.h>
 
-#define HEAP_BASE      0xD0000000u
-#define HEAP_MAX_SIZE  (64u * MB)
+#define HEAP_BASE      KERNEL_HEAP_BASE
+#define HEAP_MAX_SIZE  (KERNEL_HEAP_MAX - KERNEL_HEAP_BASE)
 #define BLOCK_MAGIC    0x48454150u      /* "HEAP" */
 #define MIN_SPLIT      32u
 
