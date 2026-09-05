@@ -54,6 +54,8 @@ void      vmm_space_switch(struct addr_space *space);
 int       vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys, uint32_t flags);
 void      vmm_unmap_in(struct addr_space *space, virt_addr_t virt);
 phys_addr_t vmm_translate_in(struct addr_space *space, virt_addr_t virt);
+/* Validate a complete virtual range, including user and optional write access. */
+int       vmm_access_ok_in(struct addr_space *space, virt_addr_t start, size_t size, int write);
 int       vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size, uint32_t flags);
 void      vmm_free_range(struct addr_space *space, virt_addr_t start, size_t size);
 
