@@ -2,8 +2,8 @@
  * SifarOS kernel entry.
  *
  * Everything below runs in 32-bit protected mode on the stack set up by
- * arch/x86/entry.S.  Bring-up order matters: console first so failures are
- * visible, then descriptor tables, then memory, then the scheduler.
+ * arch/x86/entry.S. Bring-up order matters: console first so failures are
+ * visible, then descriptor tables, memory, devices, processes and scheduling.
  */
 #include <kernel/types.h>
 #include <kernel/version.h>
@@ -24,7 +24,7 @@
 #include <kernel/blockdev.h>
 #include <kernel/sfs.h>
 #include <kernel/wm.h>
-
+#include <kernel/rtl8139.h>
 
 static struct bootinfo boot_copy;
 
@@ -99,7 +99,6 @@ static void seed_filesystem(void)
     vfs_write_file("/etc/release", release, sizeof(release) - 1);
     vfs_write_file("/README.md", readme, sizeof(readme) - 1);
 
-    /* The system files are not the shell's to delete. */
     {
         struct fs_node *node;
 
@@ -109,7 +108,6 @@ static void seed_filesystem(void)
             node->readonly = 1;
     }
 
-    /* /bin lists what 'run' can start, so the tree reflects reality. */
     {
         int count = 0;
         const struct embedded_program *list = program_list(&count);
@@ -117,7 +115,7 @@ static void seed_filesystem(void)
         for (int i = 0; i < count; i++) {
             char path[FS_PATH_MAX];
             char description[128];
-            int  len;
+            int len;
 
             ksnprintf(path, sizeof(path), "/bin/%s", list[i].name);
             len = ksnprintf(description, sizeof(description),
@@ -137,7 +135,7 @@ static void seed_filesystem(void)
 
 static void print_motd(void)
 {
-    char    buffer[512];
+    char buffer[512];
     ssize_t n = vfs_read_file("/etc/motd", buffer, sizeof(buffer) - 1);
 
     if (n > 0) {
@@ -197,7 +195,7 @@ void kmain(struct bootinfo *info)
     report_memory(&boot_copy);
 
     paging_init();
-    kprintf("paging : enabled, %u pages mapped\n", vmm_mapped_pages());
+    kprintf("paging : PAE/NX enabled, %u pages mapped\n", vmm_mapped_pages());
 
     kheap_init();
     kprintf("heap   : ready\n");
@@ -220,6 +218,14 @@ void kmain(struct bootinfo *info)
     kprintf("timer  : PIT at %u Hz\n", timer_hz());
     kprintf("input  : PS/2 keyboard%s and COM1 serial console\n",
             mouse_present() ? ", PS/2 mouse" : "");
+
+    if (rtl8139_init() == 0) {
+        const uint8_t *mac = rtl8139_mac();
+        kprintf("net    : RTL8139 %02x:%02x:%02x:%02x:%02x:%02x ready (polling)\n",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    } else {
+        kprintf("net    : no RTL8139 device\n");
+    }
 
     proc_init();
     vfs_init();
@@ -258,7 +264,6 @@ void kmain(struct bootinfo *info)
     kprintf("\nboot complete in %u ms\n", (uint32_t)timer_ms());
     print_motd();
 
-    /* Hand the screen over to the window system and start the desktop. */
     if (wm_init() == 0) {
         const char *args[] = { "desktop" };
         int pid;
@@ -269,16 +274,11 @@ void kmain(struct bootinfo *info)
             console_set_screen_output(1);
             kprintf("desktop: /apps/desktop did not start (error %d)\n", pid);
         } else {
-            /* The desktop is the only user process allowed to manage other
-             * applications' windows or invoke machine power controls. These
-             * privileges are kernel-granted and are not inherited by apps the
-             * desktop launches. */
             proc_grant_caps(pid, PROC_CAP_WINDOW_CONTROL | PROC_CAP_SYSTEM_CONTROL);
             kprintf("desktop: started as process %d with shell capabilities\n", pid);
         }
     }
 
-    /* Thread 0 becomes the idle task: reap dead threads and wait for work. */
     for (;;) {
         sched_reap();
         proc_reap();
