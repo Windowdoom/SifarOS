@@ -87,6 +87,9 @@ stick with `dd`, given a BIOS or CSM.
 
 ## Using it
 
+`docs/USING.md` is a step by step guide: installing the prerequisites,
+building, booting, and a tour of the applications.
+
 Double click an icon, or open the launcher in the bottom left. Windows drag by
 their title bar, resize from the bottom right corner, minimise and close from
 the buttons on the right. The taskbar switches between them.

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Boot the SifarOS disk image in QEMU.
+# Boot SifarOS in QEMU.
 #
-#   tools/run.sh              graphical window if one is available, else serial
-#   tools/run.sh --serial     headless, console on this terminal
+#   tools/run.sh              a window if there is a display, else serial
+#   tools/run.sh --serial     headless, kernel console on this terminal
 #   tools/run.sh --debug      wait for gdb on localhost:1234
-#   tools/run.sh --curses     text mode VGA in the terminal
+#   tools/run.sh --curses     text mode in the terminal
+#
+# Environment: MEMORY (MiB), IMAGE, QEMU.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 IMAGE=${IMAGE:-build/sifaros.img}
-MEMORY=${MEMORY:-128}
+MEMORY=${MEMORY:-512}
 QEMU=${QEMU:-qemu-system-i386}
 
 if [ ! -f "$IMAGE" ]; then
@@ -19,6 +21,13 @@ if [ ! -f "$IMAGE" ]; then
 fi
 
 ARGS=(-drive "format=raw,file=$IMAGE" -m "$MEMORY" -no-reboot -boot c)
+
+# Hardware virtualisation makes the software compositor feel immediate rather
+# than merely usable.  Fall back quietly when it is not available.
+if [ -w /dev/kvm ]; then
+    ARGS+=(-accel kvm -cpu host)
+fi
+
 MODE=${1:-auto}
 
 case "$MODE" in
@@ -34,11 +43,14 @@ case "$MODE" in
         echo "Waiting for gdb: target remote localhost:1234"
         ;;
     auto|"")
-        if [ -n "${DISPLAY:-}" ]; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             ARGS+=(-serial mon:stdio)
+            echo "SifarOS is booting in a window."
+            echo "Click inside it to give it the mouse; Ctrl-Alt-G gives it back."
+            echo "This terminal is the kernel console: type 'help' for its commands."
         else
             ARGS+=(-display none -serial mon:stdio)
-            echo "No display available, using the serial console. Quit with Ctrl-A then X."
+            echo "No display, using the serial console. Quit with Ctrl-A then X."
         fi
         ;;
     *)
