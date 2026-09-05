@@ -44,7 +44,6 @@
 #define TX_TOK         (1u << 15)
 #define TX_TUN         (1u << 14)
 
-#define RCR_AAP        (1u << 0)
 #define RCR_APM        (1u << 1)
 #define RCR_AM         (1u << 2)
 #define RCR_AB         (1u << 3)
@@ -61,11 +60,23 @@ static uint32_t tx_index;
 static int ready;
 
 static uint8_t reg8(uint16_t offset) { return inb((uint16_t)(io_base + offset)); }
-static uint16_t reg16(uint16_t offset) { return inw((uint16_t)(io_base + offset)); }
 static uint32_t reg32(uint16_t offset) { return inl((uint16_t)(io_base + offset)); }
 static void put8(uint16_t offset, uint8_t value) { outb((uint16_t)(io_base + offset), value); }
 static void put16(uint16_t offset, uint16_t value) { outw((uint16_t)(io_base + offset), value); }
 static void put32(uint16_t offset, uint32_t value) { outl((uint16_t)(io_base + offset), value); }
+
+static void release_dma(void)
+{
+    if (rx_phys)
+        pmm_free_contiguous(rx_phys, RX_PAGES);
+    if (tx_phys)
+        pmm_free_contiguous(tx_phys, TX_PAGES);
+    rx_phys = 0;
+    tx_phys = 0;
+    rx_buffer = NULL;
+    for (uint32_t i = 0; i < TX_COUNT; i++)
+        tx_buffer[i] = NULL;
+}
 
 static int wait_reset(void)
 {
@@ -111,8 +122,7 @@ int rtl8139_init(void)
 
     ready = 0;
     io_base = 0;
-    rx_phys = 0;
-    tx_phys = 0;
+    release_dma();
     rx_offset = 0;
     tx_index = 0;
     memset(mac_address, 0, sizeof(mac_address));
@@ -133,11 +143,7 @@ int rtl8139_init(void)
     rx_phys = pmm_alloc_frames(RX_PAGES);
     tx_phys = pmm_alloc_frames(TX_PAGES);
     if (!rx_phys || !tx_phys) {
-        if (rx_phys)
-            pmm_free_contiguous(rx_phys, RX_PAGES);
-        if (tx_phys)
-            pmm_free_contiguous(tx_phys, TX_PAGES);
-        rx_phys = tx_phys = 0;
+        release_dma();
         return -4;
     }
     rx_buffer = (uint8_t *)(uintptr_t)rx_phys;
@@ -149,8 +155,10 @@ int rtl8139_init(void)
     /* Wake the controller and perform a software reset. */
     put8(RTL_CONFIG1, 0x00);
     put8(RTL_COMMAND, CMD_RESET);
-    if (wait_reset() < 0)
+    if (wait_reset() < 0) {
+        release_dma();
         return -5;
+    }
 
     for (uint32_t i = 0; i < 6; i++)
         mac_address[i] = reg8((uint16_t)(RTL_IDR0 + i));
@@ -163,10 +171,9 @@ int rtl8139_init(void)
     put16(RTL_IMR, 0x0000);
     put16(RTL_ISR, 0xFFFF);
 
-    /* Accept frames addressed to us plus broadcast/multicast. Promiscuous
-     * AAP stays enabled during early stack development so ARP/debug frames are
-     * observable; network policy still lives above this raw device layer. */
-    put32(RTL_RCR, RCR_AAP | RCR_APM | RCR_AM | RCR_AB | RCR_WRAP);
+    /* Accept frames addressed to this MAC, multicast and broadcast. Do not use
+     * accept-all/promiscuous mode in the browser-facing build. */
+    put32(RTL_RCR, RCR_APM | RCR_AM | RCR_AB | RCR_WRAP);
     put32(RTL_TCR, 0x03000700u);
     put8(RTL_COMMAND, CMD_RX_ENABLE | CMD_TX_ENABLE);
 
@@ -177,6 +184,11 @@ int rtl8139_init(void)
 int rtl8139_ready(void)
 {
     return ready;
+}
+
+uint16_t rtl8139_io_base(void)
+{
+    return ready ? io_base : 0;
 }
 
 const uint8_t *rtl8139_mac(void)
@@ -199,8 +211,6 @@ int rtl8139_send(const void *frame, size_t length)
     memcpy(tx_buffer[slot], frame, length);
     put32((uint16_t)(RTL_TSD0 + slot * 4u), (uint32_t)length);
 
-    /* Keep send semantics deterministic for the tiny synchronous network stack:
-     * return only once hardware reports success or a bounded timeout/error. */
     {
         uint64_t deadline = timer_ms() + 500u;
         do {
@@ -235,8 +245,6 @@ int rtl8139_poll(void *frame, size_t capacity)
 
     /* RTL8139 length includes the four-byte Ethernet CRC. */
     if (!(status & RX_ROK) || packet_length < 4u || packet_length > 1522u) {
-        /* Bad descriptor. Reset receive position instead of trusting a hostile
-         * or corrupted length to walk outside the DMA ring. */
         rx_offset = 0;
         put16(RTL_CAPR, (uint16_t)(RX_SIZE - 16u));
         put16(RTL_ISR, 0xFFFF);
