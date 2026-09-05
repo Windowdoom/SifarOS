@@ -22,6 +22,19 @@ static int starts_with(const char *text, const char *prefix)
     return strncmp(text, prefix, strlen(prefix)) == 0;
 }
 
+static char *find_sequence(char *text, const char *needle)
+{
+    size_t needle_len = strlen(needle);
+
+    if (!needle_len)
+        return text;
+    for (; *text; text++) {
+        if (strncmp(text, needle, needle_len) == 0)
+            return text;
+    }
+    return NULL;
+}
+
 static const char *mode_reason(const char *mode)
 {
     if (strcmp(mode, "defensive") == 0)
@@ -74,8 +87,8 @@ static void parse_adaptive_log(void)
             memcpy(line, p, (size_t)take);
             line[take] = '\0';
 
-            if (strstr(line, "self-adapting policy engine online") == NULL) {
-                arrow = strstr(line, " -> ");
+            if (!find_sequence(line, "self-adapting policy engine online")) {
+                arrow = find_sequence(line, " -> ");
                 paren = strchr(line, '(');
                 if (arrow) {
                     char *mode_start = arrow + 4;
@@ -117,6 +130,9 @@ static void parse_adaptive_log(void)
 
 static void draw_history(ui_window *w, int x, int y, int width, int height)
 {
+    int shown;
+    int first;
+
     fu_card(w, x, y, width, height);
     fu_text(w, x + 16, y + 14, "POLICY TRANSITIONS", UI_TEXT_DIM);
 
@@ -127,8 +143,8 @@ static void draw_history(ui_window *w, int x, int y, int width, int height)
         return;
     }
 
-    int shown = history_count < 6 ? history_count : 6;
-    int first = history_count - shown;
+    shown = history_count < 6 ? history_count : 6;
+    first = history_count - shown;
     for (int i = 0; i < shown; i++) {
         int row = first + i;
         ui_circle(w, x + 21, y + 48 + i * 28, 3, UI_ACCENT_LIGHT);
