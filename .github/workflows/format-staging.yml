@@ -1,0 +1,42 @@
+name: Format staging sources
+
+on:
+  push:
+    branches:
+      - sifar/2.0-adaptive-staging
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: sifar/2.0-adaptive-staging
+          fetch-depth: 0
+
+      - name: Install formatter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Restore readable C formatting
+        run: |
+          clang-format -i kernel/ktest.c kernel/syscall.c
+          git diff --check
+
+      - name: Commit formatting only
+        run: |
+          if git diff --quiet -- kernel/ktest.c kernel/syscall.c; then
+            echo "Sources are already formatted."
+            exit 0
+          fi
+          git config user.name "SifarOS CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add kernel/ktest.c kernel/syscall.c
+          git commit -m "style: restore readable kernel test and syscall sources"
+          git push origin HEAD:sifar/2.0-adaptive-staging
