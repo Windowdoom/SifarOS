@@ -1,9 +1,10 @@
 /*
  * ELF32 program loader.
  *
- * Static executables only.  The loader treats the ELF file as untrusted input:
+ * Static executables only. The loader treats the ELF file as untrusted input:
  * every table arithmetic operation is overflow checked, load segments must fit
- * inside the user address range, and W+X segments are rejected.
+ * inside the user address range, overlapping load pages are rejected, and W+X
+ * segments are forbidden. PAE/NX then enforces those permissions in hardware.
  */
 #include <kernel/elf.h>
 #include <kernel/mm.h>
@@ -41,10 +42,8 @@ int elf_is_valid(const uint8_t *image, size_t size)
     return 1;
 }
 
-/*
- * Write into an address space we are not running in, one page at a time,
- * reaching each page through its physical address.
- */
+/* Write into an address space we are not running in, one page at a time,
+ * reaching each page through its low-memory physical identity mapping. */
 static int write_to_space(struct addr_space *space, virt_addr_t dst,
                           const void *src, size_t len)
 {
@@ -64,6 +63,31 @@ static int write_to_space(struct addr_space *space, virt_addr_t dst,
         bytes += chunk;
         dst += chunk;
         len -= chunk;
+    }
+    return 0;
+}
+
+static int load_pages_overlap(const struct elf32_ehdr *header,
+                              const struct elf32_phdr *segment, uint16_t before)
+{
+    uint64_t first_a = (uint64_t)ALIGN_DOWN(segment->vaddr, PAGE_SIZE);
+    uint64_t last_a = ((uint64_t)segment->vaddr + segment->memsz + PAGE_SIZE - 1u) &
+                      ~((uint64_t)PAGE_SIZE - 1u);
+
+    for (uint16_t j = 0; j < before; j++) {
+        const struct elf32_phdr *other =
+            (const struct elf32_phdr *)((const uint8_t *)header + header->phoff +
+                                        (size_t)j * header->phentsize);
+        uint64_t first_b;
+        uint64_t last_b;
+
+        if (other->type != PT_LOAD || other->memsz == 0)
+            continue;
+        first_b = (uint64_t)ALIGN_DOWN(other->vaddr, PAGE_SIZE);
+        last_b = ((uint64_t)other->vaddr + other->memsz + PAGE_SIZE - 1u) &
+                 ~((uint64_t)PAGE_SIZE - 1u);
+        if (first_a < last_b && first_b < last_a)
+            return 1;
     }
     return 0;
 }
@@ -88,12 +112,10 @@ int elf_load(struct addr_space *space, const uint8_t *image, size_t size,
         if (segment->type != PT_LOAD || segment->memsz == 0)
             continue;
 
-        /* File bytes must be contained in the input image and in the segment. */
         if (segment->filesz > segment->memsz ||
             !range_within(segment->offset, segment->filesz, size))
             return -1;
 
-        /* Reject address arithmetic wraparound and kernel-space mappings. */
         if (segment->vaddr < USER_MIN ||
             segment->memsz > USER_MAX - segment->vaddr)
             return -1;
@@ -101,13 +123,16 @@ int elf_load(struct addr_space *space, const uint8_t *image, size_t size,
         if (end > USER_MAX)
             return -1;
 
-        /* This kernel has no executable-page bit yet, so enforce W^X here. */
         if ((segment->flags & (PF_W | PF_X)) == (PF_W | PF_X))
+            return -1;
+        if (load_pages_overlap(header, segment, i))
             return -1;
 
         flags = PTE_PRESENT | PTE_USER;
         if (segment->flags & PF_W)
             flags |= PTE_WRITE;
+        if (segment->flags & PF_X)
+            flags |= PTE_EXEC;
 
         if (segment->align &&
             (segment->align & (segment->align - 1)) != 0)
@@ -128,7 +153,6 @@ int elf_load(struct addr_space *space, const uint8_t *image, size_t size,
             (segment->flags & PF_X))
             entry_executable = 1;
 
-        /* vmm_alloc_range hands out zeroed frames, so .bss is already clear. */
         if (end > highest)
             highest = end;
     }
