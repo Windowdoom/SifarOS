@@ -178,6 +178,50 @@ static int fu_button(ui_window *w, int x, int y, int width, int height,
     return clicked;
 }
 
+static int fu_textbox(ui_window *w, int x, int y, int width,
+                      char *text, int capacity)
+{
+    int id = ++w->widget_counter;
+    int height = 36;
+    int submitted = 0;
+    int length = (int)strlen(text);
+    int hover = ui_hit(w, x, y, width, height);
+
+    if (hover && w->mouse_pressed)
+        w->focus = id;
+
+    if (w->focus == id) {
+        for (int i = 0; i < w->key_count; i++) {
+            unsigned key = w->keys[i];
+            if (key == GUI_KEY_BACK) {
+                if (length > 0)
+                    text[--length] = '\0';
+            } else if (key == GUI_KEY_ENTER) {
+                submitted = 1;
+            } else if (key >= 32 && key < 127 && length < capacity - 1) {
+                text[length++] = (char)key;
+                text[length] = '\0';
+            }
+        }
+    }
+
+    ui_round_fill(w, x, y, width, height, height / 2,
+                  w->focus == id ? UI_SURFACE_ALT : UI_SURFACE);
+    ui_frame(w, x, y, width, height,
+             w->focus == id ? UI_ACCENT : UI_BORDER);
+    ui_clip_set(w, x + 16, y, width - 32, height);
+    {
+        int text_width = fu_text_width(text);
+        int offset = text_width > width - 38 ? text_width - (width - 38) : 0;
+        fu_text(w, x + 16 - offset, y + 10, text, UI_TEXT);
+        if (w->focus == id)
+            ui_fill(w, x + 18 - offset + text_width, y + 9, 2, 18,
+                    UI_ACCENT_LIGHT);
+    }
+    ui_clip_reset(w);
+    return submitted;
+}
+
 static void fu_section_title(ui_window *w, int x, int y, const char *eyebrow,
                              const char *title)
 {
