@@ -9,6 +9,7 @@ source tools/common.sh
 
 IMAGE=${IMAGE:-build/sifaros.img}
 QEMU=${QEMU:-qemu-system-i386}
+CPU=${CPU:-max}
 MEMORY=${MEMORY:-512}
 BOOT_WAIT=${BOOT_WAIT:-5}
 TIMEOUT=${TIMEOUT:-30}
@@ -78,6 +79,7 @@ boot_and_check() {
     } | run_limited "$TIMEOUT" "$QEMU" \
             -drive "format=raw,file=$image" \
             -m "$MEMORY" \
+            -cpu "$CPU" \
             -display none \
             -serial stdio \
             -no-reboot \
