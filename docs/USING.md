@@ -185,6 +185,10 @@ rather than burying you in assembler errors.
 **`make test` says `timeout: command not found`.** That is macOS. Install
 Homebrew coreutils, which provides `gtimeout`, and the scripts will find it.
 
+**The build stops on a warning you did not write.** Compiler versions differ
+in what they warn about, and warnings are errors here. Get a working build
+with `make WERROR=0`, then report the warning so it can be fixed properly.
+
 **No window appears.** There is no display. Use `make run-serial`, or on WSL
 install WSLg.
 

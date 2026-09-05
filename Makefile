@@ -40,12 +40,17 @@ KERNEL_SECTORS := 1024
 FS_LBA         := 2048          # the filesystem starts here
 IMAGE_SECTORS  := 131072        # 64 MiB disk
 
+# Warnings are errors here, but a different compiler version can invent new
+# ones, so 'make WERROR=0' gets you a build while you sort that out.
+WERROR ?= 1
+WERROR_FLAG := $(if $(filter 1,$(WERROR)),-Werror,)
+
 # -MMD -MP make the compiler emit header dependencies next to each object, so
 # editing a header rebuilds everything that includes it.  Without this, a
 # changed struct silently leaves stale objects behind and the layouts stop
 # agreeing between translation units.
 CFLAGS := -m32 -std=gnu11 -ffreestanding -fno-builtin -fno-stack-protector \
-          -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra -Werror \
+          -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra $(WERROR_FLAG) \
           -Wno-unused-parameter -O2 -g -MMD -MP -Iinclude
 ASFLAGS := -m32 -c -Iinclude
 LDFLAGS := -m elf_i386 -T linker.ld -nostdlib -z noexecstack
@@ -67,7 +72,7 @@ USER_BLOBS  := $(patsubst %,$(USER_DIR)/%_blob.o,$(EMBEDDED))
 APP_ELVES   := $(patsubst %,$(USER_DIR)/%.elf,$(APPS))
 
 USER_CFLAGS := -m32 -std=gnu11 -ffreestanding -fno-builtin -fno-stack-protector \
-               -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra -Werror \
+               -fno-pic -fno-pie -nostdlib -nostdinc -Wall -Wextra $(WERROR_FLAG) \
                -Wno-unused-parameter -Os -MMD -MP -Iinclude -Iuser/lib
 LIB_OBJECTS := $(USER_LIB)/crt0.o $(USER_LIB)/sifar.o $(USER_LIB)/ui.o
 
@@ -80,6 +85,10 @@ FS_CONTENT := \
 	--text '/docs/about.txt:SifarOS was written from scratch: bootloader, kernel, drivers,\nfilesystem, window system and every application you can see.\n'
 
 .PHONY: all clean run run-serial test test-gui test-all debug shot apps toolchain
+
+# The toolchain probe below is declared before 'all', so say explicitly which
+# target a bare 'make' should build.
+.DEFAULT_GOAL := all
 
 # Fail with an explanation rather than a hundred assembler errors when the
 # compiler in use cannot produce 32-bit x86 code.
