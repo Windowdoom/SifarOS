@@ -77,7 +77,7 @@ int pci_enable_busmaster(const struct pci_device *device)
     if (!device)
         return -1;
     command = pci_read_config32(device->bus, device->slot, device->function, 0x04);
-    command |= 0x00000005u; /* I/O space + bus mastering */
+    command |= 0x00000007u; /* I/O space + memory space + bus mastering */
     pci_write_config32(device->bus, device->slot, device->function, 0x04, command);
     return 0;
 }
