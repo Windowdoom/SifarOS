@@ -14,10 +14,11 @@ The security model is based on five properties:
 
 ## Current v1 enforcement
 
-The hardening branch currently strengthens the ring-3 boundary:
+The hardening branch strengthens the ring-3 boundary:
 
 - user pointer validation is performed against the calling process address space;
-- read/write access can be checked separately at the page-table level;
+- kernel reads and kernel writes have separate validation paths;
+- write-oriented syscalls require writable user pages;
 - user mappings are restricted to the user virtual-address window;
 - zero-length and arithmetic-overflow cases are handled explicitly;
 - `sbrk` rejects address-space wraparound and releases pages when shrinking;
@@ -26,7 +27,11 @@ The hardening branch currently strengthens the ring-3 boundary:
 - ELF load segments must remain inside user space;
 - malformed segment alignment is rejected;
 - writable + executable load segments are rejected;
-- the ELF entry point must fall inside an executable load segment.
+- the ELF entry point must fall inside an executable load segment;
+- syscall output-array size multiplication is checked before validation;
+- Sentinel maintains a bounded kernel-owned event ring;
+- process start/exit and unknown-syscall events can be recorded without retaining user pointers;
+- kernel self-tests exercise Sentinel event recording and ring-buffer wraparound.
 
 ## Security roadmap
 
@@ -46,9 +51,17 @@ Replace broad PID-based authority with kernel-issued capabilities for sensitive 
 
 Sentinel is the native SifarOS defensive security service. It is not antivirus based on a giant signature database. It observes security-relevant events and applies policy.
 
-Initial event classes:
+Current foundation:
 
-- process creation and termination;
+- bounded kernel-owned event ring;
+- monotonic event sequence numbers;
+- process lifecycle telemetry;
+- unknown-syscall telemetry;
+- explicit response levels;
+- regression coverage for ring-buffer behavior.
+
+Next event classes:
+
 - executable validation and integrity changes;
 - privilege transitions;
 - suspicious memory mappings;
