@@ -19,22 +19,22 @@ uint32_t    pmm_free_frames(void);
 uint64_t    pmm_total_bytes(void);
 
 /* ---- paging ---- */
-#define PTE_PRESENT 0x001
-#define PTE_WRITE   0x002
-#define PTE_USER    0x004
+#define PTE_PRESENT  0x001
+#define PTE_WRITE    0x002
+#define PTE_USER     0x004
 #define PTE_ACCESSED 0x020
-#define PTE_DIRTY   0x040
+#define PTE_DIRTY    0x040
 
 /*
  * Address spaces.
  *
- * Every process gets its own page directory.  The kernel half (the identity
+ * Every process gets its own page directory. The kernel half (the identity
  * map, the heap window and the framebuffer) is described by page tables that
  * are allocated once at boot and shared into every directory, so a kernel
  * mapping made later is visible to every process without any bookkeeping.
  */
-#define USER_MIN        0x40000000u
-#define USER_MAX        0xD0000000u
+#define USER_MIN         0x40000000u
+#define USER_MAX         0xD0000000u
 #define KERNEL_HEAP_BASE 0xD0000000u
 #define KERNEL_HEAP_MAX  0xD4000000u
 #define KERNEL_FB_BASE   0xE0000000u
@@ -51,18 +51,19 @@ int       vmm_space_create(struct addr_space *space);
 void      vmm_space_destroy(struct addr_space *space);
 void      vmm_space_switch(struct addr_space *space);
 
-int       vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys, uint32_t flags);
-void      vmm_unmap_in(struct addr_space *space, virt_addr_t virt);
+int         vmm_map_in(struct addr_space *space, virt_addr_t virt, phys_addr_t phys, uint32_t flags);
+void        vmm_unmap_in(struct addr_space *space, virt_addr_t virt);
 phys_addr_t vmm_translate_in(struct addr_space *space, virt_addr_t virt);
-int       vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size, uint32_t flags);
-void      vmm_free_range(struct addr_space *space, virt_addr_t start, size_t size);
+int         vmm_access_ok_in(struct addr_space *space, virt_addr_t start, size_t size, int write);
+int         vmm_alloc_range(struct addr_space *space, virt_addr_t start, size_t size, uint32_t flags);
+void        vmm_free_range(struct addr_space *space, virt_addr_t start, size_t size);
 
-/* Shorthands that act on the kernel address space. */
-int       vmm_map(virt_addr_t virt, phys_addr_t phys, uint32_t flags);
-void      vmm_unmap(virt_addr_t virt);
+/* Shorthands that act on the kernel/current address space. */
+int         vmm_map(virt_addr_t virt, phys_addr_t phys, uint32_t flags);
+void        vmm_unmap(virt_addr_t virt);
 phys_addr_t vmm_translate(virt_addr_t virt);
-int       vmm_is_mapped(virt_addr_t virt);
-uint32_t  vmm_mapped_pages(void);
+int         vmm_is_mapped(virt_addr_t virt);
+uint32_t    vmm_mapped_pages(void);
 
 /* ---- kernel heap ---- */
 void   kheap_init(void);
