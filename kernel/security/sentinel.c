@@ -17,6 +17,7 @@ static struct security_event events[SECURITY_EVENT_LOG_CAPACITY];
 static uint32_t event_head;
 static uint32_t event_count;
 static uint64_t next_sequence;
+static uint8_t initialized;
 
 void security_init(void)
 {
@@ -24,13 +25,18 @@ void security_init(void)
     event_head = 0;
     event_count = 0;
     next_sequence = 1;
+    initialized = 1;
 }
 
 void security_event_record(enum security_event_type type, uint32_t pid,
                            uint32_t code, enum security_response response)
 {
-    struct security_event *event = &events[event_head];
+    struct security_event *event;
 
+    if (!initialized)
+        security_init();
+
+    event = &events[event_head];
     event->sequence = next_sequence++;
     event->timestamp_ms = timer_ms();
     event->type = (uint32_t)type;
@@ -45,6 +51,8 @@ void security_event_record(enum security_event_type type, uint32_t pid,
 
 uint32_t security_event_count(void)
 {
+    if (!initialized)
+        return 0;
     return event_count;
 }
 
@@ -53,7 +61,7 @@ int security_event_get(uint32_t index, struct security_event *out)
     uint32_t oldest;
     uint32_t slot;
 
-    if (!out || index >= event_count)
+    if (!initialized || !out || index >= event_count)
         return -1;
 
     oldest = (event_head + SECURITY_EVENT_LOG_CAPACITY - event_count) %
