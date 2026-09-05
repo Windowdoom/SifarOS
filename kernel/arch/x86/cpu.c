@@ -1,13 +1,76 @@
-/* CPUID identification plus the two ways out of the operating system. */
+/* CPUID identification, paging feature controls and system power helpers. */
 #include <arch/x86.h>
 #include <kernel/io.h>
 #include <kernel/string.h>
+
+#define CPUID_FEAT_EDX_MSR (1u << 5)
+#define CPUID_FEAT_EDX_PAE (1u << 6)
+#define CPUID_EXT_EDX_NX   (1u << 20)
+#define MSR_EFER           0xC0000080u
+#define EFER_NXE           (1ull << 11)
 
 static void cpuid(uint32_t leaf, uint32_t *a, uint32_t *b, uint32_t *c, uint32_t *d)
 {
     __asm__ volatile("cpuid"
                      : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d)
                      : "a"(leaf), "c"(0));
+}
+
+static uint64_t rdmsr(uint32_t msr)
+{
+    uint32_t low, high;
+
+    __asm__ volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(msr));
+    return ((uint64_t)high << 32) | low;
+}
+
+static void wrmsr(uint32_t msr, uint64_t value)
+{
+    __asm__ volatile("wrmsr"
+                     :
+                     : "c"(msr), "a"((uint32_t)value), "d"((uint32_t)(value >> 32))
+                     : "memory");
+}
+
+int cpu_has_pae(void)
+{
+    uint32_t a, b, c, d;
+
+    cpuid(0, &a, &b, &c, &d);
+    if (a < 1)
+        return 0;
+    cpuid(1, &a, &b, &c, &d);
+    return (d & CPUID_FEAT_EDX_PAE) != 0;
+}
+
+int cpu_has_nx(void)
+{
+    uint32_t a, b, c, d;
+    uint32_t max_ext;
+
+    cpuid(0x80000000u, &max_ext, &b, &c, &d);
+    if (max_ext < 0x80000001u)
+        return 0;
+    cpuid(0x80000001u, &a, &b, &c, &d);
+    return (d & CPUID_EXT_EDX_NX) != 0;
+}
+
+int cpu_enable_nx(void)
+{
+    uint32_t a, b, c, d;
+    uint64_t efer;
+
+    if (!cpu_has_nx())
+        return -1;
+
+    cpuid(1, &a, &b, &c, &d);
+    if (!(d & CPUID_FEAT_EDX_MSR))
+        return -1;
+
+    efer = rdmsr(MSR_EFER);
+    efer |= EFER_NXE;
+    wrmsr(MSR_EFER, efer);
+    return (rdmsr(MSR_EFER) & EFER_NXE) ? 0 : -1;
 }
 
 void cpu_identify(char *vendor, char *brand)
