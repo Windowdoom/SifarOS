@@ -20,8 +20,10 @@
 #include <arch/x86.h>
 
 #define SUBJECT_COUNT MAX_PROCESSES
-#define QUARANTINE_CAPS (PROC_CAP_NETWORK | PROC_CAP_WINDOW_CONTROL | \
-                         PROC_CAP_SYSTEM_CONTROL | PROC_CAP_PROCESS_CONTROL)
+#define QUARANTINE_CAPS                                                       \
+    (PROC_CAP_NETWORK | PROC_CAP_WINDOW_CONTROL | PROC_CAP_SYSTEM_CONTROL |   \
+     PROC_CAP_PROCESS_CONTROL | PROC_CAP_FS_HOME_WRITE |                     \
+     PROC_CAP_FS_TEMP_WRITE | PROC_CAP_FS_SETTINGS)
 
 struct sentinel_subject {
     uint32_t pid;
@@ -35,6 +37,10 @@ static uint32_t event_count;
 static uint64_t next_sequence;
 static uint8_t initialized;
 static uint8_t enforcing;
+
+static enum security_response violation_apply(enum security_event_type type,
+                                               enum security_violation_reason reason,
+                                               uint32_t code);
 
 void security_init(void)
 {
@@ -74,7 +80,8 @@ static struct sentinel_subject *subject_for(uint32_t pid, int create)
 }
 
 static void event_store(enum security_event_type type, uint32_t pid,
-                        uint32_t code, enum security_response response)
+                        uint32_t code, enum security_violation_reason reason,
+                        enum security_response response)
 {
     struct security_event *event;
     uint32_t flags = irq_save();
@@ -85,6 +92,7 @@ static void event_store(enum security_event_type type, uint32_t pid,
     event->type = (uint32_t)type;
     event->pid = pid;
     event->code = code;
+    event->reason = (uint32_t)reason;
     event->response = (uint32_t)response;
 
     event_head = (event_head + 1) % SECURITY_EVENT_LOG_CAPACITY;
@@ -111,12 +119,23 @@ void security_event_record(enum security_event_type type, uint32_t pid,
         (type == SECURITY_EVENT_SYSCALL_VIOLATION ||
          type == SECURITY_EVENT_CAPABILITY_DENIED)) {
         enforcing = 1;
-        (void)security_syscall_violation(code);
+        (void)violation_apply(
+            type, type == SECURITY_EVENT_SYSCALL_VIOLATION
+                      ? SECURITY_REASON_INVALID_SYSCALL
+                      : SECURITY_REASON_NONE,
+            code);
         enforcing = 0;
         return;
     }
 
-    event_store(type, pid, code, response);
+    event_store(type, pid, code, SECURITY_REASON_NONE, response);
+}
+
+void security_capability_denied(enum security_violation_reason reason,
+                                uint32_t syscall_number)
+{
+    (void)violation_apply(SECURITY_EVENT_CAPABILITY_DENIED, reason,
+                          syscall_number);
 }
 
 uint32_t security_process_score(uint32_t pid)
@@ -152,7 +171,9 @@ void security_process_forget(uint32_t pid)
     irq_restore(flags);
 }
 
-enum security_response security_syscall_violation(uint32_t code)
+static enum security_response violation_apply(enum security_event_type type,
+                                               enum security_violation_reason reason,
+                                               uint32_t code)
 {
     struct process *proc = proc_current();
     struct sentinel_subject *subject;
@@ -164,8 +185,7 @@ enum security_response security_syscall_violation(uint32_t code)
         security_init();
 
     if (!proc || proc == proc_kernel()) {
-        event_store(SECURITY_EVENT_SYSCALL_VIOLATION, 0, code,
-                    SECURITY_RESPONSE_SUSPICIOUS);
+        event_store(type, 0, code, reason, SECURITY_RESPONSE_SUSPICIOUS);
         return SECURITY_RESPONSE_SUSPICIOUS;
     }
 
@@ -174,7 +194,7 @@ enum security_response security_syscall_violation(uint32_t code)
     if (!subject) {
         irq_restore(flags);
         event_store(SECURITY_EVENT_RESOURCE_ABUSE, (uint32_t)proc->pid,
-                    code, SECURITY_RESPONSE_ISOLATE);
+                    code, SECURITY_REASON_NONE, SECURITY_RESPONSE_ISOLATE);
         adaptive_note_security(SECURITY_RESPONSE_ISOLATE);
         proc_revoke_caps(proc->pid, PROC_CAP_ALL);
         return SECURITY_RESPONSE_ISOLATE;
@@ -198,14 +218,19 @@ enum security_response security_syscall_violation(uint32_t code)
     else if (response >= SECURITY_RESPONSE_ISOLATE)
         proc_revoke_caps(proc->pid, PROC_CAP_ALL);
 
-    event_store(SECURITY_EVENT_SYSCALL_VIOLATION,
-                (uint32_t)proc->pid, code, response);
+    event_store(type, (uint32_t)proc->pid, code, reason, response);
     adaptive_note_security((uint32_t)response);
 
     if (response == SECURITY_RESPONSE_KILL)
         proc_exit(-126);
 
     return response;
+}
+
+enum security_response security_syscall_violation(uint32_t code)
+{
+    return violation_apply(SECURITY_EVENT_SYSCALL_VIOLATION,
+                           SECURITY_REASON_INVALID_SYSCALL, code);
 }
 
 uint32_t security_event_count(void)

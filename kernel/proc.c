@@ -84,6 +84,32 @@ int proc_has_cap(const struct process *proc, uint32_t cap) {
   return proc && (proc->capabilities & cap) == cap;
 }
 
+static int path_is_within(const char *path, const char *root) {
+  size_t length;
+
+  if (!path || !root)
+    return 0;
+  length = strlen(root);
+  return strncmp(path, root, length) == 0 &&
+         (path[length] == '\0' || path[length] == '/');
+}
+
+int proc_fs_mutation_allowed(const struct process *proc,
+                             const char *absolute_path) {
+  if (!proc || !absolute_path || absolute_path[0] != '/')
+    return 0;
+  if (proc_has_cap(proc, PROC_CAP_FS_HOME_WRITE) &&
+      path_is_within(absolute_path, "/home"))
+    return 1;
+  if (proc_has_cap(proc, PROC_CAP_FS_TEMP_WRITE) &&
+      path_is_within(absolute_path, "/tmp"))
+    return 1;
+  if (proc_has_cap(proc, PROC_CAP_FS_SETTINGS) &&
+      path_is_within(absolute_path, "/etc/sifar"))
+    return 1;
+  return 0;
+}
+
 void proc_init(void) {
   memset(table, 0, sizeof(table));
   kernel_process = &table[0];
@@ -364,10 +390,20 @@ int proc_spawn(const char *path, int argc, const char *const *argv) {
   result = proc_spawn_image(name, image, (size_t)read, argc, argv);
   kfree(image);
 
-  /* Network authority belongs only to the immutable packaged
-   * browser at its canonical path. Capabilities are never inherited. */
+  /* Authorities belong only to immutable packaged applications at their
+   * canonical paths. Capabilities are never inferred from a process name and
+   * are never inherited. */
   if (result > 0 && node->readonly && strcmp(absolute, "/apps/browser") == 0)
     proc_grant_caps(result, PROC_CAP_NETWORK);
+  if (result > 0 && node->readonly &&
+      (strcmp(absolute, "/apps/editor") == 0 ||
+       strcmp(absolute, "/apps/files") == 0 ||
+       strcmp(absolute, "/apps/terminal") == 0 ||
+       strcmp(absolute, "/apps/paint") == 0 ||
+       strcmp(absolute, "/apps/hello") == 0))
+    proc_grant_caps(result, PROC_CAP_FS_HOME_WRITE | PROC_CAP_FS_TEMP_WRITE);
+  if (result > 0 && node->readonly && strcmp(absolute, "/apps/settings") == 0)
+    proc_grant_caps(result, PROC_CAP_FS_SETTINGS);
   return result;
 }
 
@@ -446,9 +482,8 @@ int proc_kill(int pid) {
     return -1;
   if (caller != kernel_process && proc->parent != caller->pid &&
       !proc_has_cap(caller, PROC_CAP_PROCESS_CONTROL)) {
-    security_event_record(SECURITY_EVENT_CAPABILITY_DENIED,
-                          caller ? (uint32_t)caller->pid : 0, SYS_KILL,
-                          SECURITY_RESPONSE_SUSPICIOUS);
+    security_capability_denied(SECURITY_REASON_PROCESS_CONTROL_DENIED,
+                               SYS_KILL);
     return -1;
   }
 

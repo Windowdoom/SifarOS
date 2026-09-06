@@ -15,9 +15,13 @@
 #define PROC_CAP_PROCESS_CONTROL 0x00000004u
 #define PROC_CAP_PROCESS_INSPECT 0x00000008u
 #define PROC_CAP_NETWORK         0x00000010u
+#define PROC_CAP_FS_HOME_WRITE   0x00000020u
+#define PROC_CAP_FS_TEMP_WRITE   0x00000040u
+#define PROC_CAP_FS_SETTINGS     0x00000080u
 #define PROC_CAP_ALL             (PROC_CAP_WINDOW_CONTROL | PROC_CAP_SYSTEM_CONTROL | \
                                   PROC_CAP_PROCESS_CONTROL | PROC_CAP_PROCESS_INSPECT | \
-                                  PROC_CAP_NETWORK)
+                                  PROC_CAP_NETWORK | PROC_CAP_FS_HOME_WRITE | \
+                                  PROC_CAP_FS_TEMP_WRITE | PROC_CAP_FS_SETTINGS)
 
 enum proc_state {
     PROC_FREE = 0,
@@ -55,6 +59,8 @@ void            proc_foreach(void (*fn)(const struct process *, void *), void *c
 int  proc_grant_caps(int pid, uint32_t caps);
 int  proc_revoke_caps(int pid, uint32_t caps);
 int  proc_has_cap(const struct process *proc, uint32_t cap);
+int  proc_fs_mutation_allowed(const struct process *proc,
+                              const char *absolute_path);
 
 /* Load an executable and start it. Returns the new pid, or a negative error. */
 int  proc_spawn(const char *path, int argc, const char *const *argv);
