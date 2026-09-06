@@ -21,6 +21,7 @@
 #include <kernel/sfs.h>
 #include <kernel/string.h>
 #include <kernel/wm.h>
+#include <sys/syscall.h>
 
 static int checks_run;
 static int checks_failed;
@@ -57,6 +58,27 @@ static void test_string(void) {
   check(memcmp(buffer, "0101234567", 10) == 0, "memmove handles overlap");
   check(atoi("  -42") == -42, "atoi parses a negative number");
   check(strchr("path/to/file", '/') != NULL, "strchr finds a character");
+}
+
+static void test_fs_capabilities(void) {
+  struct process proc;
+
+  suite("fs capabilities");
+  memset(&proc, 0, sizeof(proc));
+  check(!proc_fs_mutation_allowed(&proc, "/home/file"),
+        "filesystem mutation is default deny");
+  proc.capabilities = PROC_CAP_FS_HOME_WRITE;
+  check(proc_fs_mutation_allowed(&proc, "/home/file"),
+        "home capability permits its namespace");
+  check(!proc_fs_mutation_allowed(&proc, "/homework/file"),
+        "namespace matching requires a path boundary");
+  check(!proc_fs_mutation_allowed(&proc, "/apps/editor"),
+        "home capability cannot modify packaged applications");
+  proc.capabilities = PROC_CAP_FS_SETTINGS;
+  check(proc_fs_mutation_allowed(&proc, "/etc/sifar/preferences"),
+        "settings capability is confined to Sifar configuration");
+  check(!proc_fs_mutation_allowed(&proc, "/etc/motd"),
+        "settings capability cannot modify arbitrary configuration");
 }
 
 static void test_printf(void) {
@@ -482,8 +504,14 @@ static void test_security(void) {
   check(security_event_count() == 1, "Sentinel records a security event");
   check(security_event_get(0, &event) == 0, "Sentinel returns recorded events");
   check(event.type == SECURITY_EVENT_SYSCALL_VIOLATION && event.pid == 42 &&
-            event.code == 0xDEAD,
+            event.code == 0xDEAD && event.reason == SECURITY_REASON_NONE,
         "recorded event retains its security context");
+  security_capability_denied(SECURITY_REASON_FS_WRITE_DENIED, SYS_FS_WRITE);
+  check(security_event_get(1, &event) == 0 &&
+            event.type == SECURITY_EVENT_CAPABILITY_DENIED &&
+            event.reason == SECURITY_REASON_FS_WRITE_DENIED &&
+            event.code == SYS_FS_WRITE,
+        "capability denials retain typed reasons");
   before = security_event_count();
   for (uint32_t i = 0; i < SECURITY_EVENT_LOG_CAPACITY + 8; i++)
     security_event_record(SECURITY_EVENT_PROCESS_START, i, 0,
@@ -503,6 +531,7 @@ int ktest_run(void) {
   checks_failed = 0;
   kprintf("\nrunning kernel self-tests\n");
   test_string();
+  test_fs_capabilities();
   test_printf();
   test_div64();
   test_pmm();

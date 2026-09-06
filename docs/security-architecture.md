@@ -58,6 +58,8 @@ Current foundation:
 - process lifecycle telemetry;
 - unknown-syscall telemetry;
 - explicit response levels;
+- typed capability-denial reasons independent of syscall numbers;
+- quarantine revocation of network, control, and filesystem mutation authority;
 - regression coverage for ring-buffer behavior.
 
 Next event classes:

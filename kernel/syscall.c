@@ -41,6 +41,11 @@ static void denied(uint32_t syscall_number) {
                         SECURITY_RESPONSE_SUSPICIOUS);
 }
 
+static void capability_denied(enum security_violation_reason reason,
+                              uint32_t syscall_number) {
+  security_capability_denied(reason, syscall_number);
+}
+
 static int may_control_window(uint32_t id) {
   struct process *proc = proc_current();
   struct gui_window_info info;
@@ -84,6 +89,10 @@ static int32_t sys_fs_write(uint32_t path_ptr, uint32_t buf, uint32_t len) {
       !proc_user_range_ok((const void *)(uintptr_t)buf, len) ||
       vfs_abspath(proc_current()->cwd, path, absolute, sizeof(absolute)) < 0)
     return -1;
+  if (!proc_fs_mutation_allowed(proc_current(), absolute)) {
+    capability_denied(SECURITY_REASON_FS_WRITE_DENIED, SYS_FS_WRITE);
+    return -1;
+  }
   return vfs_write_file(absolute, (const void *)(uintptr_t)buf, len) == 0
              ? (int32_t)len
              : -1;
@@ -160,15 +169,25 @@ static int32_t sys_stat(uint32_t path_ptr, uint32_t out_ptr) {
 }
 
 static int32_t sys_path_op(uint32_t path_ptr, int operation) {
-  char path[FS_PATH_MAX];
+  char path[FS_PATH_MAX], absolute[FS_PATH_MAX];
   struct process *proc = proc_current();
   if (proc_copy_user_string((const char *)(uintptr_t)path_ptr, path,
                             sizeof(path)) < 0)
     return -1;
   switch (operation) {
   case SYS_UNLINK:
+    if (vfs_abspath(proc->cwd, path, absolute, sizeof(absolute)) < 0 ||
+        !proc_fs_mutation_allowed(proc, absolute)) {
+      capability_denied(SECURITY_REASON_FS_UNLINK_DENIED, SYS_UNLINK);
+      return -1;
+    }
     return vfs_unlink(proc->cwd, path) == 0 ? 0 : -1;
   case SYS_MKDIR:
+    if (vfs_abspath(proc->cwd, path, absolute, sizeof(absolute)) < 0 ||
+        !proc_fs_mutation_allowed(proc, absolute)) {
+      capability_denied(SECURITY_REASON_FS_MKDIR_DENIED, SYS_MKDIR);
+      return -1;
+    }
     return vfs_create(proc->cwd, path, FS_DIR) ? 0 : -1;
   case SYS_CHDIR: {
     char absolute[FS_PATH_MAX];
@@ -193,6 +212,10 @@ static int32_t sys_fs_append(uint32_t path_ptr, uint32_t buf, uint32_t len) {
       !proc_user_range_ok((const void *)(uintptr_t)buf, len) ||
       vfs_abspath(proc_current()->cwd, path, absolute, sizeof(absolute)) < 0)
     return -1;
+  if (!proc_fs_mutation_allowed(proc_current(), absolute)) {
+    capability_denied(SECURITY_REASON_FS_APPEND_DENIED, SYS_FS_APPEND);
+    return -1;
+  }
   return vfs_append_file(absolute, (const void *)(uintptr_t)buf, len) == 0
              ? (int32_t)len
              : -1;
@@ -342,7 +365,7 @@ static int32_t sys_net_info(uint32_t p) {
   struct net_info *out = USER_STRUCT(p, struct net_info);
 
   if (!proc_has_cap(proc_current(), PROC_CAP_NETWORK)) {
-    denied(SYS_NET_INFO);
+    capability_denied(SECURITY_REASON_NETWORK_DENIED, SYS_NET_INFO);
     return -1;
   }
   if (!out)
@@ -359,7 +382,7 @@ static int32_t sys_http_get(uint32_t req_ptr, uint32_t out_ptr,
   void *out = (void *)(uintptr_t)out_ptr;
 
   if (!proc_has_cap(proc_current(), PROC_CAP_NETWORK)) {
-    denied(SYS_HTTP_GET);
+    capability_denied(SECURITY_REASON_NETWORK_DENIED, SYS_HTTP_GET);
     return -1;
   }
   if (capacity == 0 || capacity > NET_HTTP_MAX ||
@@ -488,7 +511,7 @@ static void syscall_handler(struct registers *regs) {
     if (may_control_window(arg1))
       result = wm_activate(arg1);
     else {
-      denied(number);
+      capability_denied(SECURITY_REASON_WINDOW_CONTROL_DENIED, number);
       result = -1;
     }
     break;
@@ -496,7 +519,7 @@ static void syscall_handler(struct registers *regs) {
     if (may_control_window(arg1))
       result = wm_minimize(arg1);
     else {
-      denied(number);
+      capability_denied(SECURITY_REASON_WINDOW_CONTROL_DENIED, number);
       result = -1;
     }
     break;
@@ -525,7 +548,7 @@ static void syscall_handler(struct registers *regs) {
     if (proc_has_cap(proc_current(), PROC_CAP_SYSTEM_CONTROL))
       cpu_reboot();
     else {
-      denied(number);
+      capability_denied(SECURITY_REASON_SYSTEM_CONTROL_DENIED, number);
       result = -1;
     }
     break;
@@ -533,7 +556,7 @@ static void syscall_handler(struct registers *regs) {
     if (proc_has_cap(proc_current(), PROC_CAP_SYSTEM_CONTROL))
       cpu_halt();
     else {
-      denied(number);
+      capability_denied(SECURITY_REASON_SYSTEM_CONTROL_DENIED, number);
       result = -1;
     }
     break;
