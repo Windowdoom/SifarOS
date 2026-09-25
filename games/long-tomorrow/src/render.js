@@ -38,13 +38,13 @@ const Render={
   pixelRatio(){const q=G.settings.quality;const d=Math.min(devicePixelRatio||1,2);return q==='low'?Math.min(.85,d):q==='medium'?Math.min(1,d):q==='ultra'?d:Math.min(1.35,d);},
   build(){
     const r=G.renderer,q=G.settings.quality;const w=innerWidth,h=innerHeight,pr=this.pixelRatio();
-    r.setPixelRatio(pr);r.setSize(w,h,false);const W=Math.floor(w*pr),H=Math.floor(h*pr);
+    r.setPixelRatio(pr*(this.scale||1));const _pr=pr*(this.scale||1);r.setSize(w,h,false);const W=Math.floor(w*_pr),H=Math.floor(h*_pr);
     if(this.composer)this.composer.dispose&&this.composer.dispose();
     const rt=new THREE.WebGLRenderTarget(W,H,{type:THREE.HalfFloatType,samples:(q==='high'||q==='ultra')?4:0});
     const c=this.composer=new THREE.EffectComposer(r,rt);c.setPixelRatio(1);c.setSize(W,H);
     this.renderPass=new THREE.RenderPass(new THREE.Scene(),new THREE.PerspectiveCamera());c.addPass(this.renderPass);
     this.gtao=null;
-    if(q==='high'||q==='ultra'){this.gtao=new THREE.GTAOPass(new THREE.Scene(),new THREE.PerspectiveCamera(),W,H);this.gtao.blendIntensity=.85;
+    if(q==='ultra'){this.gtao=new THREE.GTAOPass(new THREE.Scene(),new THREE.PerspectiveCamera(),W,H);this.gtao.blendIntensity=.85;
       this.gtao.updateGtaoMaterial({radius:.6,distanceExponent:1.4,thickness:1.2,scale:1,samples:q==='ultra'?16:10});c.addPass(this.gtao);}
     this.bloom=null;if(q!=='low'){this.bloom=new THREE.UnrealBloomPass(new THREE.Vector2(W,H),.55,.55,.92);c.addPass(this.bloom);}
     c.addPass(new THREE.OutputPass());
@@ -57,8 +57,11 @@ const Render={
   /* image-based lighting: equirect HDR or a procedural sky scene → PMREM */
   envFromTexture(t){if(!t)return null;const e=this.pmrem.fromEquirectangular(t).texture;return e;},
   envFromScene(scene){return this.pmrem.fromScene(scene,.03,.1,1000).texture;},
+  /* adaptive resolution: drop render scale when frames are slow, recover when fast */
+  adapt(){const f=G._fps||60;this.scale=this.scale||1;const t=performance.now();if(t-(this._at||0)<2500)return;this._at=t;
+    const ns=f<34?Math.max(.55,this.scale-.15):f>55?Math.min(1,this.scale+.1):this.scale;if(Math.abs(ns-this.scale)>.01){this.scale=ns;this.build();}},
   draw(scene,camera){
-    const f=this.fx;
+    const f=this.fx;this.adapt();
     this.renderPass.scene=scene;this.renderPass.camera=camera;
     if(this.gtao){const on=f.ao&&G.mode==='surface';this.gtao.enabled=on;if(on){this.gtao.scene=scene;this.gtao.camera=camera;}}
     if(this.bloom){this.bloom.strength=f.bloom*.62;this.bloom.threshold=f.threshold;}

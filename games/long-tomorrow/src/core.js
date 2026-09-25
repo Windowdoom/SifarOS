@@ -244,7 +244,7 @@ const Store={
 /* ── Global game object ── */
 const G={
   state:null,mode:'boot',renderer:null,camera:null,scene:null,time:0,dt:0,timeScale:1,
-  settings:Object.assign({sens:1,invertY:false,volume:.7,quality:'high',fov:72,radio:true},Store.settings()),
+  settings:Object.assign({sens:1,invertY:false,volume:.7,quality:'medium',fov:72,radio:true},Store.settings()),
   dragLook:false,
   wantsLock(){return (this.mode==='surface'||this.mode==='space')&&!Input.touch;},
   onUnlock:null,

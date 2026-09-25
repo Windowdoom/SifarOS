@@ -26,23 +26,23 @@ const Weather={
     const r=U.rng(U.hash(S.siteId+Math.floor(G.state.earthYear*365)));
     const W={prof,type:U.weighted(r,prof).t,level:0,target:1,t:0,next:120+r()*200,flash:0,bolt:null,thunder:[],S,site};
     // precipitation: line streaks for rain, points for everything else
-    const N=4000;const pos=new Float32Array(N*6);for(let i=0;i<N;i++){const x=(Math.random()-.5)*90,y=Math.random()*50,z=(Math.random()-.5)*90;pos.set([x,y,z,x,y-.6,z],i*6);}
+    const N=1600;const pos=new Float32Array(N*6);for(let i=0;i<N;i++){const x=(Math.random()-.5)*90,y=Math.random()*50,z=(Math.random()-.5)*90;pos.set([x,y,z,x,y-.6,z],i*6);}
     const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(pos,3));
     W.rain=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:C('#b8c8d8'),transparent:true,opacity:.35,depthWrite:false}));W.rain.frustumCulled=false;S.scene.add(W.rain);
-    const M=2500;const pp=new Float32Array(M*3);for(let i=0;i<M;i++)pp.set([(Math.random()-.5)*90,Math.random()*40,(Math.random()-.5)*90],i*3);
+    const M=1200;const pp=new Float32Array(M*3);for(let i=0;i<M;i++)pp.set([(Math.random()-.5)*90,Math.random()*40,(Math.random()-.5)*90],i*3);
     const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
     W.parts=new THREE.Points(pg,new THREE.PointsMaterial({color:C('#ffffff'),size:.12,transparent:true,opacity:.8,depthWrite:false,map:Gen.sparkTex(),alphaTest:.01}));W.parts.frustumCulled=false;S.scene.add(W.parts);
     W.rainN=N;W.partN=M;
     // cloud layer
     if(site.sky.haze>=.3&&site.sky.stars<1){
       const cm=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.BackSide,fog:false,uniforms:{time:{value:0},cover:{value:.3},sunDir:{value:new THREE.Vector3(0,1,0)},sunCol:{value:C(site.sky.sunCol)},base:{value:C(site.sky.hor)},day:{value:1}},
-        vertexShader:`varying vec3 vD;void main(){vD=normalize(position);vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position=p.xyww;}`,
-        fragmentShader:GLSL_NOISE+`uniform float time,cover,day;uniform vec3 sunDir,sunCol,base;varying vec3 vD;void main(){if(vD.y<.02)discard;
-          vec2 uv=vD.xz/(vD.y+.12)*1.6;float n=fbm(vec3(uv*.6+vec2(time*.004,time*.002),time*.01));float n2=fbm(vec3(uv*2.3,time*.02));
+        vertexShader:`varying vec3 vD;void main(){vD=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+        fragmentShader:GLSL_NOISE+`uniform float time,cover,day;uniform vec3 sunDir,sunCol,base;varying vec3 vD;void main(){if(vD.y<.12)discard;
+          vec2 uv=vD.xz/(vD.y+.35)*1.2;float n=fbm(vec3(uv*.6+vec2(time*.004,time*.002),time*.01));float n2=fbm(vec3(uv*2.3,time*.02));
           float d=smoothstep(1.-cover*1.4,1.2-cover,n*.5+.5+n2*.15);float thick=smoothstep(.2,1.,d);
           float s=max(dot(normalize(vD),normalize(sunDir)),0.);vec3 lit=mix(base*.55,sunCol*1.25,pow(s,4.)*.6+.45)*mix(1.,.45,cover*thick);
-          vec3 col=lit*(.25+.75*day);gl_FragColor=vec4(col,d*smoothstep(.02,.18,vD.y)*.92);}`});
-      W.clouds=new THREE.Mesh(new THREE.SphereGeometry(2600,48,24),cm);W.clouds.renderOrder=-9;S.scene.add(W.clouds);
+          vec3 col=lit*(.25+.75*day);gl_FragColor=vec4(col,d*smoothstep(.14,.45,vD.y)*.85);}`});
+      W.clouds=new THREE.Mesh(new THREE.SphereGeometry(2200,40,12,0,Math.PI*2,0,Math.PI*.45),cm);W.clouds.renderOrder=-9;W.clouds.frustumCulled=false;S.scene.add(W.clouds);
     }
     this.apply(W,true);return W;
   },
@@ -50,7 +50,7 @@ const Weather={
     const S=W.S,sky=W.site.sky;const k=W.type;
     const cover={clear:.18,overcast:.75,rain:.85,storm:.95,snow:.7,dust:.4,spores:.55,ash:.8,methane:.8}[k]??.3;
     const dim={clear:1,overcast:.55,rain:.42,storm:.3,snow:.55,dust:.5,spores:.6,ash:.45,methane:.5}[k]??1;
-    const fogMul={clear:1,overcast:1.3,rain:1.9,storm:2.4,snow:2.2,dust:4,spores:2.5,ash:3,methane:1.8}[k]??1;
+    const fogMul={clear:1,overcast:1.1,rain:1.35,storm:1.6,snow:1.5,dust:2.2,spores:1.5,ash:1.8,methane:1.3}[k]??1;
     W.goal={cover,dim,fogMul};if(instant)W.cur=Object.assign({},W.goal);
     const pc={snow:'#ffffff',dust:'#d8a070',spores:'#e0a0ff',ash:'#6a6060',methane:'#e0a060'}[k];if(pc)W.parts.material.color.copy(C(pc));
     W.rain.material.color.copy(C(k==='methane'?'#d8a060':'#b8c8d8'));

@@ -39,7 +39,7 @@ const Surface={
     const sky=site.sky;S.scene.fog=interior?null:new THREE.FogExp2(C(sky.fog),sky.fogD);
     S.hemi=new THREE.HemisphereLight(sky.stars>=1&&!interior?C('#7a8494'):C(sky.hor),C(site.ground[0]),interior?1.2:(sky.stars>=1?.45:.9));S.scene.add(S.hemi);
     S.sun=new THREE.DirectionalLight(C(sky.sunCol),interior?0:(sky.sunSize>2?5.2:6.4));S.sun.castShadow=G.settings.quality!=='low';
-    const sc=S.sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=1;sc.far=500;S.sun.shadow.mapSize.set(G.settings.quality==='ultra'?4096:2048,G.settings.quality==='ultra'?4096:2048);S.sun.shadow.bias=-.0004;S.sun.shadow.normalBias=.04;
+    const sc=S.sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=1;sc.far=500;S.sun.shadow.mapSize.set(G.settings.quality==='ultra'?4096:1024,G.settings.quality==='ultra'?4096:1024);S.sun.shadow.bias=-.0004;S.sun.shadow.normalBias=.04;
     S.scene.add(S.sun);S.scene.add(S.sun.target);
     if(!interior){
       S.skyMesh=new THREE.Mesh(new THREE.SphereGeometry(3000,48,24),Gen.skyMaterial(sky));S.skyMesh.renderOrder=-10;S.scene.add(S.skyMesh);
@@ -454,7 +454,7 @@ const Surface={
     for(let g=0;g<groups;g++){const type=U.pick(r,site.enemies||['raider']);const a=r()*6.28,d=190+r()*320;const cx=Math.cos(a)*d,cz=Math.sin(a)*d;if(this.h(cx,cz)<-100)continue;
       const n=type==='sentinel'||type==='construct'?1+Math.floor(r()*2):2+Math.floor(r()*3);for(let i=0;i<n;i++)this.spawnEnemy(type,cx+(r()-.5)*20,cz+(r()-.5)*20);}
     if(site.style==='camp')for(let i=0;i<5;i++)this.spawnEnemy('raider',(r()-.5)*40,(r()-.5)*40);
-    if(site.sea&&this.siteId==='earth')this.spawnSharks(site);
+
     if(site.style==='vault')for(let i=0;i<3;i++)this.spawnEnemy('construct',(r()-.5)*80,-40+(r()-.5)*40);
   },
   spawnEnemy(type,x,z,tag){
@@ -596,7 +596,7 @@ const Surface={
       if(S.heart)S.heart.rotation.y+=dt*.3;
       if(S.beacons)S.beacons.forEach(b=>b.rotation.y+=dt);
       for(const i of S.interact){if(i.mesh)i.mesh.rotation.y+=dt*2;}
-      S._envT=(S._envT||0)+dt;if(S.siteId!=='earth'&&S.site.style!=='city'&&S.site.day>0&&S._envT>25)S.refreshSkyEnv();
+      S._envT=(S._envT||0)+dt;if(S.siteId!=='earth'&&S.site.style!=='city'&&S.site.day>0&&S._envT>120)S.refreshSkyEnv();
     }else if(S.viewscreen){S.viewscreen.material.uniforms.time.value=G.time;if(S.core)S.core.rotation.y+=dt;}
     // night lights on city windows
     if(S.boss)S.bossTick(dt);else UI.bossBar&&UI.bossBar(null);
