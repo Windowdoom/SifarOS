@@ -72,17 +72,36 @@ const UI={
   close(silent){if(!this.open)return;const o=this.open;this.open=null;o.el.remove();if(o.onClose)o.onClose();if(this.yardR){this.yardR.dispose();this.yardR=null;}Input.uiOpen=false;G.paused=false;if(!silent)AudioSys.sfx('ui');},
 
   /* ── Title & character creation ── */
+  /* a small second renderer for menu previews, lit by a studio environment */
+  previewRenderer(host){
+    const r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.outputColorSpace=THREE.SRGBColorSpace;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.05;r.setPixelRatio(Math.min(devicePixelRatio||1,2));
+    host.appendChild(r.domElement);try{const pm=new THREE.PMREMGenerator(r);r.__env=pm.fromScene(new THREE.RoomEnvironment(),.04).texture;pm.dispose();}catch(e){r.__env=null;}
+    return r;
+  },
   title(){
     const hasSave=Store.latest();
     const el=U.el('div',{class:'layer interactive',id:'title'});
     el.innerHTML=`<h1><span>A Sifar Chronicle</span>The Long<br>Tomorrow</h1>
       <p class="tag">2187. A signal from everywhere at once, a ship that shouldn't work, and a universe that changes with every choice you make. ${U.esc(Cosmos.countEstimate())}</p>
       <div class="menu">${hasSave?`<button class="btn primary" data-a="continue">Continue · ${U.esc(hasSave.meta.name)} · ${U.esc(hasSave.meta.act||'')}</button>`:''}
-      <button class="btn ${hasSave?'':'primary'}" data-a="new">New Game</button><button class="btn" data-a="load">Load / Import</button><button class="btn" data-a="settings">Settings</button><button class="btn" data-a="controls">Controls</button></div>
+      <button class="btn ${hasSave?'':'primary'}" data-a="new">New Game</button><button class="btn" data-a="load">Load / Import</button><button class="btn" data-a="settings">Settings</button><button class="btn" data-a="controls">Controls</button><button class="btn" data-a="credits">Credits</button></div>
       <div class="foot">Real star catalogue · Procedural galaxy model · Synthesized audio · Mature language (filter in Settings)</div>`;
     el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{AudioSys.init();AudioSys.sfx('ui2');const a=b.dataset.a;
-      if(a==='new')this.create();else if(a==='continue'){el.remove();Game.loadSlot(hasSave.slot);}else if(a==='load')this.loadMenu();else if(a==='settings')this.settings();else this.controls();});
+      if(a==='new')this.create();else if(a==='continue'){el.remove();Game.loadSlot(hasSave.slot);}else if(a==='load')this.loadMenu();else if(a==='settings')this.settings();else if(a==='credits')this.credits();else this.controls();});
     this.root.appendChild(el);this.titleEl=el;
+  },
+  /* every third-party asset and library, with author, licence and source */
+  credits(){
+    this.modal('credits','Credits',async b=>{b.innerHTML='<p class="note">Loading credits…</p>';
+      const list=await Assets.loadCredits();
+      const libs=[{what:'three.js r170 (renderer, loaders, post-processing)',author:'mrdoob and three.js contributors',license:'MIT',url:'https://github.com/mrdoob/three.js'},
+        {what:'cannon-es (rigid-body physics)',author:'pmndrs, after Stefan Hedman\'s cannon.js',license:'MIT',url:'https://github.com/pmndrs/cannon-es'},
+        {what:'IBM Plex Sans / Plex Mono, Saira Condensed',author:'IBM; Omnibus-Type',license:'SIL Open Font License 1.1',url:'https://fonts.google.com'},
+        {what:'Nearby star and exoplanet values (distances, masses, orbits, temperatures)',author:'Public catalogues: NASA Exoplanet Archive, ESA Gaia, discovery papers',license:'Public scientific data',url:'https://exoplanetarchive.ipac.caltech.edu'}];
+      const row=c=>`<div class="li"><div><b>${U.esc(c.what)}</b><div class="note">${U.esc(c.author)} · ${U.esc(c.license)}${c.file?` · <span class="mono">${U.esc(c.file)}</span>`:''}</div></div>${c.url?`<a class="note mono" href="${U.esc(c.url)}" target="_blank" rel="noopener">source</a>`:''}</div>`;
+      b.innerHTML=`<p class="note">The Long Tomorrow is original code, story and music synthesis. It stands on the work below, used under each licence. NASA material is used without implying endorsement. Thank you to everyone who shares their work openly.</p>
+        <h4 class="lbl" style="margin:14px 0 6px">Models, textures and skies</h4><div class="list">${(list||[]).map(row).join('')||'<p class="note">The credits file could not be loaded.</p>'}</div>
+        <h4 class="lbl" style="margin:14px 0 6px">Code and data</h4><div class="list">${libs.map(row).join('')}</div>`;},{wide:true});
   },
   controls(){this.modal('controls','Controls',`<div class="grid2">
     <div class="card"><h4>On foot</h4><dl class="kv"><dt>Move</dt><dd>W A S D · Shift sprint · Space jump (hold to glide on Titan)</dd><dt>Look</dt><dd>Mouse (click to capture) · V first/third person · Wheel zoom</dd><dt>Fight</dt><dd>Left click fire · Right click aim · R reload · 1–6 weapons · Q Neural Targeting (slow time) · H trauma kit</dd>
@@ -115,14 +134,15 @@ const UI={
     });
   },
   create(){
-    const pick={name:'Danial Abbas',origin:'physician',attrs:{STR:5,PER:5,END:5,CHA:5,INT:5,AGI:5},pts:6,suit:'#39475a',skin:'#b98260',hair:'#1b1410',ship:'Long Tomorrow',helmet:false};
+    const rn=U.rng(Date.now()>>>0);const pick={name:U.pick(rn,NAMES.first)+' '+U.pick(rn,NAMES.last),origin:'physician',attrs:{STR:5,PER:5,END:5,CHA:5,INT:5,AGI:5},pts:6,suit:'#39475a',skin:'#b98260',hair:'#1b1410',ship:'Long Tomorrow',helmet:false,body:U.pick(rn,['soldier','michelle'])};
+    const BODIES={soldier:['Operator','Field armour, heavy boots. Reads as ex-military.'],michelle:['Civilian','Street clothes under a pressure liner. Reads as crew, not cop.'],xbot:['Synthetic','A printed chassis. You can play as an uploaded mind or a built one.']};
     const suits=['#39475a','#5a3a2a','#2a4a3a','#4a2a4a','#6a6a70','#8a2a2a','#1a1a1e','#c8ccd4'],skins=['#f1d3bd','#e0b596','#c69274','#b98260','#8a5a3c','#5a3a26','#3a2418'],hairs=['#1b1410','#3a2414','#8a5a2a','#c8a060','#a3522a','#d8d8d8','#101010'];
     const m=this.modal('create','New captain',b=>{
       b.innerHTML=`<div class="preview" id="cpv"></div><div>
         <div class="row"><label class="lbl" for="cn">Name</label><input id="cn" value="${U.esc(pick.name)}" maxlength="28" style="flex:1"><label class="lbl" for="cs">Ship</label><input id="cs" value="${U.esc(pick.ship)}" maxlength="28" style="flex:1"></div>
         <h4 class="lbl" style="margin:16px 0 8px">Origin</h4><div class="origins">${Object.entries(ORIGINS).map(([k,o])=>`<button class="origin ${k===pick.origin?'sel':''}" data-o="${k}"><b>${o.name}</b><small>${U.esc(o.home)}</small><small>${U.esc(o.blurb)}</small></button>`).join('')}</div>
         <div class="grid2" style="margin-top:16px"><div><h4 class="lbl" style="margin-bottom:8px">Attributes · <span id="pts"></span> points left</h4><div id="attrs"></div></div>
-        <div><h4 class="lbl" style="margin-bottom:8px">Look</h4><div class="lbl" style="margin:6px 0">Suit</div><div class="swatches" id="sw-suit"></div><div class="lbl" style="margin:10px 0 6px">Skin</div><div class="swatches" id="sw-skin"></div><div class="lbl" style="margin:10px 0 6px">Hair</div><div class="swatches" id="sw-hair"></div>
+        <div><h4 class="lbl" style="margin-bottom:8px">Look</h4><div class="lbl" style="margin:6px 0">Body</div><div class="row" id="bodies" style="flex-wrap:wrap;gap:6px"></div><p class="note" id="bdesc" style="margin:6px 0 0"></p><div class="lbl" style="margin:10px 0 6px">Suit tint</div><div class="swatches" id="sw-suit"></div><div id="fallback-look" ${Chars.ready?'hidden':''}><div class="lbl" style="margin:10px 0 6px">Skin</div><div class="swatches" id="sw-skin"></div><div class="lbl" style="margin:10px 0 6px">Hair</div><div class="swatches" id="sw-hair"></div></div>
         <p class="note" id="odesc" style="margin-top:12px"></p></div></div>
         <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn primary" id="go">Begin · 2187</button></div></div>`;
       const drawAttrs=()=>{b.querySelector('#pts').textContent=pick.pts;b.querySelector('#attrs').innerHTML=Object.keys(ATTRS).map(a=>{const v=pick.attrs[a]+(ORIGINS[pick.origin].attr===a?1:0);return `<div class="attr" title="${ATTRS[a].desc}"><b>${a}</b><div class="pips">${Array.from({length:10},(_,i)=>`<i class="${i<v?'on':''}"></i>`).join('')}</div><span class="mono">${v}</span><button class="btn small" data-m="${a}">−</button><button class="btn small" data-p="${a}">+</button></div>`;}).join('');
@@ -131,16 +151,20 @@ const UI={
         b.querySelector('#odesc').textContent=ORIGINS[pick.origin].intro;};
       const sw=(id,list,key)=>{const e=b.querySelector(id);e.innerHTML=list.map(c=>`<button class="sw ${c===pick[key]?'sel':''}" style="background:${c}" data-c="${c}" aria-label="${c}"></button>`).join('');e.querySelectorAll('button').forEach(x=>x.onclick=()=>{pick[key]=x.dataset.c;sw(id,list,key);rebuild();});};
       sw('#sw-suit',suits,'suit');sw('#sw-skin',skins,'skin');sw('#sw-hair',hairs,'hair');
+      const drawBodies=()=>{const e=b.querySelector('#bodies');e.innerHTML=Object.entries(BODIES).map(([k,v])=>`<button class="btn small ${k===pick.body?'primary':''}" data-body="${k}">${v[0]}</button>`).join('');b.querySelector('#bdesc').textContent=BODIES[pick.body][1];
+        e.querySelectorAll('[data-body]').forEach(x=>x.onclick=()=>{pick.body=x.dataset.body;drawBodies();rebuild();AudioSys.sfx('ui');});};drawBodies();
       b.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{pick.origin=x.dataset.o;b.querySelectorAll('[data-o]').forEach(y=>y.classList.toggle('sel',y===x));drawAttrs();AudioSys.sfx('ui');});
       drawAttrs();
       // 3D preview
-      const host=b.querySelector('#cpv');const r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.outputEncoding=THREE.sRGBEncoding;host.appendChild(r.domElement);this.yardR=r;
-      const sc=new THREE.Scene();const cam=new THREE.PerspectiveCamera(32,1,.1,50);cam.position.set(0,1.2,4.2);cam.lookAt(0,.95,0);
-      sc.add(new THREE.HemisphereLight(0xb8c8ff,0x201810,.8));const dl=new THREE.DirectionalLight(0xfff0dd,1.6);dl.position.set(2,3,3);sc.add(dl);const rl=new THREE.DirectionalLight(0xf2a33a,1.2);rl.position.set(-3,1,-2);sc.add(rl);
-      const floor=new THREE.Mesh(new THREE.CircleGeometry(1.2,48),new THREE.MeshStandardMaterial({color:0x121a28,roughness:.8}));floor.rotation.x=-Math.PI/2;sc.add(floor);
-      let hum=null;const rebuild=()=>{if(hum)sc.remove(hum.root);hum=Gen.humanoid({suit:pick.suit,skin:pick.skin,hair:pick.hair,gun:'sidearm'});sc.add(hum.root);};rebuild();
-      let run=true;const loop=()=>{if(!run||!host.isConnected){run=false;return;}const w=host.clientWidth,h=host.clientHeight;if(w&&h){r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}
-        hum.root.rotation.y+=.008;hum.pose(1/60,0,false,false,false);r.render(sc,cam);requestAnimationFrame(loop);};requestAnimationFrame(loop);
+      const host=b.querySelector('#cpv');const r=UI.previewRenderer(host);this.yardR=r;
+      const sc=new THREE.Scene();sc.environment=r.__env;const cam=new THREE.PerspectiveCamera(30,1,.1,50);cam.position.set(0,1.15,5.2);cam.lookAt(0,.88,0);
+      sc.add(new THREE.HemisphereLight(0xb8c8ff,0x201810,1.4));const dl=new THREE.DirectionalLight(0xfff0dd,3.2);dl.position.set(2,3,3);sc.add(dl);const rl=new THREE.DirectionalLight(0xf2a33a,3);rl.position.set(-3,1.5,-2);sc.add(rl);
+      const floor=new THREE.Mesh(new THREE.CircleGeometry(1.2,48),new THREE.MeshStandardMaterial({color:0x121a28,roughness:.55,metalness:.3}));floor.rotation.x=-Math.PI/2;sc.add(floor);
+      let hum=null;const rebuild=()=>{if(hum)sc.remove(hum.root);
+        hum=Chars.ready?Chars.create(Object.assign(Chars.playerLook(pick),{gun:'sidearm'})):null;if(!hum)hum=Gen.humanoid({suit:pick.suit,skin:pick.skin,hair:pick.hair,gun:'sidearm'});
+        if(hum.gun&&!hum.gun.parent)sc.add(hum.gun);sc.add(hum.root);};rebuild();
+      let run=true,last=performance.now();const loop=(now)=>{if(!run||!host.isConnected){run=false;r.dispose();return;}const w=host.clientWidth,h=host.clientHeight;if(w&&h){r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}
+        const dt=Math.min(.05,((now||last)-last)/1000);last=now||last;hum.root.rotation.y+=dt*.5;hum.pose(dt||1/60,0,false,false,false);r.render(sc,cam);requestAnimationFrame(loop);};requestAnimationFrame(loop);
       b.querySelector('#go').onclick=()=>{pick.name=b.querySelector('#cn').value.trim()||'Captain';pick.ship=b.querySelector('#cs').value.trim()||'Long Tomorrow';run=false;this.close();this.titleEl&&this.titleEl.remove();Game.newGame(pick);};
     },{wide:true});
   },
@@ -219,11 +243,11 @@ const UI={
     if(t==='system'){b.innerHTML=`<div class="grid2"><div class="list">
       ${['auto','1','2','3'].map(sl=>`<div class="li"><span>${sl==='auto'?'Autosave':'Slot '+sl}${Store.meta(sl)?` · <span class="note">${U.esc(Store.meta(sl).loc||'')} ${Math.floor(Store.meta(sl).year)}</span>`:''}</span><span class="row">${sl!=='auto'?`<button class="btn small" data-save="${sl}">Save</button>`:''}${Store.meta(sl)?`<button class="btn small" data-load="${sl}">Load</button>`:''}</span></div>`).join('')}
       </div><div><button class="btn" id="exp">Export save code</button><textarea id="expo" readonly style="width:100%;height:110px;margin-top:8px;background:#0b1220;color:var(--ink);border:1px solid var(--line2);font:11px var(--f-mono)"></textarea>
-      <div class="row" style="margin-top:10px"><button class="btn" id="sett">Settings</button><button class="btn" id="ctl">Controls</button><button class="btn danger" id="quit">Quit to title</button></div><p class="note" id="svmsg" style="margin-top:8px"></p></div></div>`;
+      <div class="row" style="margin-top:10px"><button class="btn" id="sett">Settings</button><button class="btn" id="ctl">Controls</button><button class="btn" id="cred">Credits</button><button class="btn danger" id="quit">Quit to title</button></div><p class="note" id="svmsg" style="margin-top:8px"></p></div></div>`;
       b.querySelectorAll('[data-save]').forEach(x=>x.onclick=()=>{const ok=Game.saveSlot(x.dataset.save);b.querySelector('#svmsg').textContent=ok?'Saved.':'This browser blocked storage. Use Export save code instead.';});
       b.querySelectorAll('[data-load]').forEach(x=>x.onclick=()=>{this.close();Game.loadSlot(x.dataset.load);});
       b.querySelector('#exp').onclick=()=>{const t=b.querySelector('#expo');t.value=Store.exportStr(G.state);t.select();try{navigator.clipboard.writeText(t.value).then(()=>b.querySelector('#svmsg').textContent='Copied to clipboard.',()=>{});}catch(e){}};
-      b.querySelector('#sett').onclick=()=>this.settings();b.querySelector('#ctl').onclick=()=>this.controls();b.querySelector('#quit').onclick=()=>{this.close();Game.quitToTitle();};}
+      b.querySelector('#sett').onclick=()=>this.settings();b.querySelector('#ctl').onclick=()=>this.controls();b.querySelector('#cred').onclick=()=>this.credits();b.querySelector('#quit').onclick=()=>{this.close();Game.quitToTitle();};}
   },
   codex(b){
     const s=G.state;const entries=[];
@@ -304,10 +328,10 @@ const UI={
     const s=G.state;let sel=null;
     this.modal('yard','Fitting · '+s.ship.name,b=>{
       b.innerHTML=`<div><h4 class="lbl" style="margin-bottom:8px">Modules</h4><div id="fmods" class="list"></div></div><div class="pv" id="fpv"></div><div><h4 class="lbl" style="margin-bottom:8px">Slots</h4><div id="fslots"></div><h4 class="lbl" style="margin:12px 0 8px">Ship stats</h4><div id="fstats"></div></div>`;
-      const host=b.querySelector('#fpv');const r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.outputEncoding=THREE.sRGBEncoding;r.toneMapping=THREE.ACESFilmicToneMapping;host.appendChild(r.domElement);this.yardR=r;
-      const sc=new THREE.Scene();const cam=new THREE.PerspectiveCamera(35,1,1,2000);sc.add(new THREE.HemisphereLight(0xa8c0ff,0x201008,.9));const d=new THREE.DirectionalLight(0xffffff,2.2);d.position.set(40,60,50);sc.add(d);const d2=new THREE.DirectionalLight(0xf2a33a,1.1);d2.position.set(-50,-10,-40);sc.add(d2);
+      const host=b.querySelector('#fpv');const r=UI.previewRenderer(host);this.yardR=r;
+      const sc=new THREE.Scene();sc.environment=r.__env;const cam=new THREE.PerspectiveCamera(35,1,1,2000);sc.add(new THREE.HemisphereLight(0xa8c0ff,0x201008,1.6));const d=new THREE.DirectionalLight(0xffffff,4.5);d.position.set(40,60,50);sc.add(d);const d2=new THREE.DirectionalLight(0xf2a33a,2.6);d2.position.set(-50,-10,-40);sc.add(d2);
       let mesh=null;const rebuild=()=>{if(mesh)sc.remove(mesh);mesh=Gen.ship(s.ship.hull,s.ship.fit,s.ship.paint||'#9fb0c2');sc.add(mesh);const L=mesh.userData.length;cam.position.set(L*1.2,L*.55,L*1.3);cam.lookAt(0,0,0);};
-      let run=true;const loop=()=>{if(!run||!host.isConnected)return;const W=host.clientWidth,H=host.clientHeight;if(W&&H){r.setSize(W,H,false);cam.aspect=W/H;cam.updateProjectionMatrix();}if(mesh)mesh.rotation.y+=.006;r.render(sc,cam);requestAnimationFrame(loop);};
+      let run=true;const loop=()=>{if(!run||!host.isConnected){r.dispose();return;}const W=host.clientWidth,H=host.clientHeight;if(W&&H){r.setSize(W,H,false);cam.aspect=W/H;cam.updateProjectionMatrix();}if(mesh)mesh.rotation.y+=.006;r.render(sc,cam);requestAnimationFrame(loop);};
       const draw=()=>{
         const H=HULLS[s.ship.hull];const st=Game.shipStats();
         const slotHtml=['high','mid','low'].map(sl=>`<div class="lbl" style="margin:4px 0">${sl} slots</div><div class="slotrow">${Array.from({length:H.slots[sl]},(_,i)=>{const m=(s.ship.fit[sl]||[])[i];return `<button class="slot ${m?'full':''} ${sel&&sel.sl===sl&&sel.i===i?'sel':''}" data-sl="${sl}" data-i="${i}"><small>${sl} ${i+1}</small>${m?U.esc(MODULES[m].name):'empty'}</button>`;}).join('')}</div>`).join('')+

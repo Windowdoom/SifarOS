@@ -167,7 +167,20 @@ const AudioSys={
       case 'shield':this.tone(300,.25,{type:'sine',gain:.12,f1:900});break;
       case 'alarm':[0,.35,.7].forEach(t=>this.tone(740,.25,{type:'square',gain:.06,t0:t}));break;
       case 'vats':this.tone(200,.5,{type:'sine',gain:.12,f1:90});this.noise(.4,{freq:900,gain:.1,sweep:200});break;
+      // thunder: a sharp crack for close strikes, then a long low rumble that rolls off
+      case 'thunder':if(vol>.7)this.noise(.35,{freq:3500,sweep:600,gain:.5*vol,decay:.3});this.noise(5,{freq:260,sweep:45,gain:.75*vol,decay:4.6,t0:.05});this.noise(3.5,{freq:120,gain:.5*vol,decay:3.2,t0:.6});break;
+      case 'clank':this.tone(420+Math.random()*200,.25,{type:'triangle',gain:.07*vol,f1:260});this.noise(.12,{freq:1800,gain:.1*vol,type:'bandpass',q:3});break;
+      case 'splash':this.noise(.6,{freq:1400,sweep:300,gain:.25*vol,decay:.55});break;
     }
+  },
+  /* rain bed: looped noise through a bandpass, level 0..1 fades smoothly */
+  rain(level){
+    if(!this.enabled)return;const c=this.ctx;
+    if(!this.rainNode){if(level<=0)return;const s=c.createBufferSource();s.buffer=this.noiseBuf;s.loop=true;
+      const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=2600;f.Q.value=.4;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=7000;
+      const g=c.createGain();g.gain.value=0;s.connect(f);f.connect(lp);lp.connect(g);g.connect(this.master);s.start();this.rainNode={s,g,level:0};}
+    const R=this.rainNode;if(Math.abs(R.level-level)<.01)return;R.level=level;
+    R.g.gain.cancelScheduledValues(c.currentTime);R.g.gain.setValueAtTime(R.g.gain.value,c.currentTime);R.g.gain.linearRampToValueAtTime(level*.5,c.currentTime+3);
   },
   /* ambient bed: filtered noise wind + low drone, parameterized by world */
   setAmbient(spec){

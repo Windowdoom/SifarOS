@@ -6,7 +6,7 @@ const Game={
   newState(p){
     const O=ORIGINS[p.origin];const attrs=Object.assign({},p.attrs);attrs[O.attr]=(attrs[O.attr]||5)+1;
     const skills={};for(const k in SKILLS)skills[k]=XP_TABLE[Math.max(1,(O.skills[k]||1))];
-    const s={v:1,player:{name:p.name,origin:p.origin,attrs,skills,hp:0,o2:0,focus:100,rad:0,weapon:'sidearm',mag:{sidearm:12},suit:p.suit,skin:p.skin,hair:p.hair},
+    const s={v:1,player:{name:p.name,origin:p.origin,attrs,skills,hp:0,o2:0,focus:100,rad:0,weapon:'sidearm',mag:{sidearm:12},suit:p.suit,skin:p.skin,hair:p.hair,body:p.body||'soldier'},
       credits:3000,inv:{sidearm:1,slugs:60,medkit:2,o2:2},ship:{name:p.ship,hull:'kestrel',fit:{high:['pulse1','mine1'],mid:['shield1','scanner'],low:['armor1','reactor1'],drive:'torch'},hp:0,fuel:0,paint:'#9fb0c2'},
       hangar:[],ownedModules:{},crew:[],loyalty:{},flags:{},rep:{concord:0,frontier:0,oracle:0,syndicate:-10,thalassi:0,kepleri:0,engineers:0},quests:{},dyn:{},
       earthYear:START_YEAR,shipYears:0,loc:{system:'sol',site:'earth'},visited:{sol:1},news:[],world:{oracle:.25,frontier:.3,frontierRadius:14,pop:1,control:{}},stats:{kills:0,jumps:0,ly:0},wanted:0,dayPhase:.35,track:'mq'};
@@ -285,10 +285,15 @@ function boot(){
   const canvas=U.$('#gl');Render.init(canvas);Input.init(canvas);UI.init();
   G.camera=new THREE.PerspectiveCamera(G.settings.fov,innerWidth/innerHeight,.1,600000);
   Cosmos.init();Online.init();
-  Menu3D.start();UI.title();
+  Menu3D.start();
+  // load the rigged characters and props behind a progress bar; start regardless after 30 s
+  const ld=U.el('div',{class:'layer',id:'loading'});ld.innerHTML=`<div class="ld"><div class="lbl">Loading the universe</div><div class="bar"><i></i></div><div class="note mono" id="ld-msg">Characters, animation, hardware</div></div>`;U.$('#ui').appendChild(ld);
+  let started=false;const go=()=>{if(started)return;started=true;ld.remove();UI.title();};
+  Assets.preload(p=>{ld.querySelector('.bar i').style.width=Math.round(p*100)+'%';}).then(go,e=>{console.warn(e);go();});
+  Assets.loadCredits();setTimeout(go,30000);
   G.onUnlock=()=>{if((G.mode==='surface'||G.mode==='space')&&!Input.uiOpen&&!G.cine&&!UI.dlgEl&&!Input.touch&&!G._noPause){}};
   let last=performance.now();
-  const loop=(now)=>{requestAnimationFrame(loop);let dt=Math.min(.05,(now-last)/1000);last=now;
+  const loop=(now)=>{requestAnimationFrame(loop);const raw=Math.max(1e-3,(now-last)/1000);G._fps=G._fps?G._fps*.95+.05/raw:1/raw;let dt=Math.min(.05,raw);last=now;
     const s=G.state;
     // Neural Targeting slows the world, not the player's input
     if(G.vats&&s){s.player.focus-=dt*18;if(s.player.focus<=0){s.player.focus=0;G.vats=false;}}else if(s&&s.player.focus<100)s.player.focus=Math.min(100,s.player.focus+dt*6);

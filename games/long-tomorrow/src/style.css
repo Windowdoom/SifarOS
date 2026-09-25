@@ -247,3 +247,9 @@ p{margin:0 0 10px}
   #title .menu .btn{min-width:0;width:100%}
 }
 @media (prefers-reduced-motion:reduce){.toast{animation:none}#titlecard,#fade{transition:none}}
+
+/* loading */
+#loading{display:flex;align-items:flex-end;padding:0 max(16px,6vw) 12vh;background:linear-gradient(90deg,rgba(3,5,10,.9),rgba(3,5,10,.3) 60%,transparent)}
+#loading .ld{width:min(420px,100%);display:flex;flex-direction:column;gap:10px}
+#loading .bar{height:3px;background:rgba(255,255,255,.08);overflow:hidden}
+#loading .bar i{display:block;height:100%;width:4%;background:var(--signal);transition:width .3s}

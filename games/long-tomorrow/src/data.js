@@ -152,21 +152,21 @@ const MODULES={
 
 /* ── Crew (bridge stations, Orville-style) ── */
 const CREW={
-  noor:{name:'Noor Rahman',role:'Executive Officer',station:'xo',bonus:'+10% mission rewards; morale holds under pressure.',color:'#e9bf70',look:{suit:'#2b3a52',skin:'#8a5a3c',hair:'#1b1410',h:1.68},
+  noor:{name:'Noor Rahman',role:'Executive Officer',station:'xo',bonus:'+10% mission rewards; morale holds under pressure.',color:'#e9bf70',body:'michelle',tint:'#dfe6f2',look:{suit:'#2b3a52',skin:'#8a5a3c',hair:'#1b1410',h:1.68},
     want:'A Concord that still works when she is gone.',fear:'Winning the announcement and losing the country.'},
-  ilyas:{name:'Dr. Ilyas Sen',role:'Science Officer',station:'science',bonus:'Scanner range +50%, science checks −5, decodes the Sifar signal.',color:'#b29adb',look:{suit:'#3a2d52',skin:'#9c6b48',hair:'#241a14',h:1.78},
+  ilyas:{name:'Dr. Ilyas Sen',role:'Science Officer',station:'science',bonus:'Scanner range +50%, science checks −5, decodes the Sifar signal.',color:'#b29adb',body:'soldier',tint:'#c8c0d8',look:{suit:'#3a2d52',skin:'#9c6b48',hair:'#241a14',h:1.78},
     want:'Knowledge that stays open to challenge.',fear:'Being asked to certify something nobody can inspect.'},
-  mara:{name:'Mara Voss',role:'Chief Engineer',station:'engineering',bonus:'+15% power grid, hull self-repair in space, engineering checks −5.',color:'#81afd6',look:{suit:'#4a3a24',skin:'#e0b596',hair:'#a3522a',h:1.72},
+  mara:{name:'Mara Voss',role:'Chief Engineer',station:'engineering',bonus:'+15% power grid, hull self-repair in space, engineering checks −5.',color:'#81afd6',body:'michelle',tint:'#f0e0c8',look:{suit:'#4a3a24',skin:'#e0b596',hair:'#a3522a',h:1.72},
     want:'Systems that are still maintained after the ribbon is cut.',fear:'Another emergency used to postpone repairs.'},
-  wick:{name:'Tomás "Wick" Arreola',role:'Helm',station:'helm',bonus:'+15% turn rate, +10% top speed, faster warp spool.',color:'#ff9f6b',look:{suit:'#23384a',skin:'#b98260',hair:'#101010',h:1.75},
+  wick:{name:'Tomás "Wick" Arreola',role:'Helm',station:'helm',bonus:'+15% turn rate, +10% top speed, faster warp spool.',color:'#ff9f6b',body:'soldier',tint:'#d8c8b8',look:{suit:'#23384a',skin:'#b98260',hair:'#101010',h:1.75},
     want:'To fly something nobody has flown.',fear:'Being the guy who crashed it.'},
-  yara:{name:'Lt. Yara Haddad',role:'Tactical',station:'tactical',bonus:'+15% ship weapon damage, faster target lock.',color:'#ff7a6b',look:{suit:'#3a2424',skin:'#c69274',hair:'#2a1a12',h:1.7},
+  yara:{name:'Lt. Yara Haddad',role:'Tactical',station:'tactical',bonus:'+15% ship weapon damage, faster target lock.',color:'#ff7a6b',body:'michelle',tint:'#f0d8d8',look:{suit:'#3a2424',skin:'#c69274',hair:'#2a1a12',h:1.7},
     want:'A fair fight, or no fight.',fear:'Following an order she already knows is wrong.'},
-  samira:{name:'Dr. Samira Qadir',role:'Chief Medical',station:'medical',bonus:'Heals you fully when you board; +25% medkit healing.',color:'#3ec9a7',look:{suit:'#e8eef3',skin:'#a8714f',hair:'#1a1210',h:1.64},
+  samira:{name:'Dr. Samira Qadir',role:'Chief Medical',station:'medical',bonus:'Heals you fully when you board; +25% medkit healing.',color:'#3ec9a7',body:'michelle',tint:'#ffffff',look:{suit:'#e8eef3',skin:'#a8714f',hair:'#1a1210',h:1.64},
     want:'To bring everyone home, including the people who do not deserve it.',fear:'Triage by algorithm.'},
-  ren:{name:'Ren Sato',role:'Envoy',station:'comms',bonus:'Diplomacy checks −5, faction gains +25%.',color:'#9bbdcf',look:{suit:'#1f2c38',skin:'#e3c1a2',hair:'#0f0f12',h:1.74},
+  ren:{name:'Ren Sato',role:'Envoy',station:'comms',bonus:'Diplomacy checks −5, faction gains +25%.',color:'#9bbdcf',body:'soldier',tint:'#c8d4e0',look:{suit:'#1f2c38',skin:'#e3c1a2',hair:'#0f0f12',h:1.74},
     want:'Agreements rivals can bring home.',fear:'Mistaking humiliation for peace.'},
-  ada:{name:'Ada Okoro',role:'Frontier Liaison',station:'ops',bonus:'Frontier markets −10% prices; frontier rep gains +50%.',color:'#75cbb3',look:{suit:'#2f3d2a',skin:'#5a3a26',hair:'#0c0806',h:1.7},
+  ada:{name:'Ada Okoro',role:'Frontier Liaison',station:'ops',bonus:'Frontier markets −10% prices; frontier rep gains +50%.',color:'#75cbb3',body:'michelle',tint:'#e0f0e0',look:{suit:'#2f3d2a',skin:'#5a3a26',hair:'#0c0806',h:1.7},
     want:'People having a say in what is done to them.',fear:'Being invited to the meeting after the decision.'},
   seven:{name:'Seven-Lights',role:'Thalassi Liaison',station:'science2',bonus:'Translates the Choir; reveals Engineer sites on scans.',color:'#5fe0ff',alien:'thalassi',
     want:'To hear what your species sings when nobody is listening.',fear:'Silence.'},
@@ -187,8 +187,8 @@ const RADIO=[
 ];
 
 const NAMES={
-  first:['Amara','Bilal','Chen','Dara','Emeka','Farah','Gustavo','Hana','Idris','Jun','Kavya','Lars','Mei','Nadia','Omar','Priya','Quinn','Rashid','Sofia','Tariq','Uche','Vera','Wei','Ximena','Yusuf','Zainab','Aiko','Bongani','Catalina','Dmitri','Esi','Farid','Grace','Hamza','Inés','Javier','Kofi','Leila','Mateo','Nour','Olu','Paulo','Rania','Santiago','Talia','Umar','Valentina','Wanjiru','Yosef','Zhao','Ayesha','Hassan','Maryam','Ibrahim','Fatima','Danial','Sana','Ali','Hira','Kamran'],
-  last:['Abbas','Adeyemi','Bakr','Castillo','Dubois','Eriksen','Fernandes','Ghosh','Haddad','Ibarra','Jovanovic','Kaur','Lindqvist','Mensah','Nakamura','Okafor','Petrov','Qureshi','Rahman','Silva','Tanaka','Usman','Varga','Wu','Xu','Yilmaz','Zhou','Achebe','Baig','Chaudhry','Dlamini','Farouk','Hussain','Iqbal','Kim','Malik','Nwosu','Osei','Park','Siddiqui','Torres'],
+  first:['Amara','Bilal','Chen','Dara','Emeka','Farah','Gustavo','Hana','Idris','Jun','Kavya','Lars','Mei','Nadia','Omar','Priya','Quinn','Rashid','Sofia','Tariq','Uche','Vera','Wei','Ximena','Yusuf','Zainab','Aiko','Bongani','Catalina','Dmitri','Esi','Farid','Grace','Hamza','Inés','Javier','Kofi','Leila','Mateo','Nour','Olu','Paulo','Rania','Santiago','Talia','Umar','Valentina','Wanjiru','Yosef','Zhao','Ayesha','Hassan','Maryam','Ibrahim','Fatima','Sana','Ali','Hira','Kamran','Theo','Freya'],
+  last:['Adeyemi','Bakr','Castillo','Dubois','Eriksen','Fernandes','Ghosh','Haddad','Ibarra','Jovanovic','Kaur','Lindqvist','Mensah','Nakamura','Okafor','Petrov','Qureshi','Rahman','Silva','Tanaka','Usman','Varga','Wu','Xu','Yilmaz','Zhou','Achebe','Baig','Chaudhry','Dlamini','Farouk','Hussain','Iqbal','Kim','Malik','Nwosu','Osei','Park','Siddiqui','Torres'],
 };
 
 /* ════════════════ STAR SYSTEMS ════════════════
