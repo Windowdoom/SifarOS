@@ -57,6 +57,8 @@ const NPCS={
   // Throat & Anchorage
   echo:{name:'Engineer Echo',role:'Recorded presence',site:'throat',poi:'plaza',dlg:'echo',alien:'engineer'},
   custodian:{name:'The Custodian',role:'Last of the Engineers',site:'anchorage',poi:'custodian',dlg:'custodian',alien:'engineer'},
+  // The Echo
+  tabib:{name:'The Tabib',role:'Physician of worlds',site:'theatre',poi:'custodian',dlg:'tabib',alien:'tabib',cond:s=>!s.flags.tabib},
 };
 
 /* ── Main quest & authored side quests ── */
@@ -122,6 +124,12 @@ const QUESTS={
   sq_dust:{name:'Dust Union',site:'mars',stages:{
     10:{text:'Hear both sides of the strike: Kofi Mensah (union) and Director Halvorsen.',target:{site:'mars',npc:'kofi'}},
     20:{text:'Done.',target:null}}},
+  tabib:{name:'The Physician of Worlds',stages:{
+    10:{text:'Every receiver in Sol logged a note at 04:00, written in couplets and signed "Tabib". Ilyas traced it to a gate that should not exist, out past the orbit of Saturn. Fly into the Mirror Gate.',target:{system:'sol',body:'mirrorgate'},on:{ev:'system',system:'echo'},next:20},
+    20:{text:'You are in the Echo: a Sol where the story went the other way. Land at the Theatre.',target:{system:'echo',body:'theatre'},on:{ev:'land',site:'theatre'},next:30},
+    30:{text:'Consult the Tabib. It is waiting in the eighth room. Bring your chart: the state of your civilisation is the only argument it respects.',target:{site:'theatre',npc:'tabib'}},
+    40:{text:'The Tabib has decided you are the complication. Survive the consultation.',target:{site:'theatre',poi:'custodian'}},
+    50:{text:'Done.',target:null}}},
   sq_barnard:{name:'Debt of Honour',site:'barnard',stages:{
     10:{text:'Mother Kessane wants a Concord ore convoy hit in Barnard\'s Star. Or you could warn the convoy and hit her raiders instead.',target:{system:'barnard'},space:{tag:'convoy',n:3,hull:'mule',faction:'concord'}},
     20:{text:'Return to Barnard Deep for payment.',target:{system:'barnard',body:'deep'}},
@@ -465,6 +473,22 @@ DLG.custodian={start:'a',nodes:{
     ch('I need more time.',{end:1})]),
 }};
 
+DLG.tabib={start:'a',nodes:{
+  a:say('tabib',s=>'Sit. No, not there; that is where the last civilisation sat.\n\n"'+TABIB.couplets[0].replace('\n',' / ')+'"\n\nYou followed my notes through a door I left ajar. Most patients never read the notes. Ask your questions in order. I prefer a history taken properly.',[
+    ch('Who are you?',{go:'who'}),ch('What do you want with us?',{go:'want'}),ch('What is my diagnosis?',{go:'dx'}),
+    ch('Here is our chart. Read it.',{req:{fn:'treated'},go:'chart'}),
+    ch('Teach me to do what you do.',{go:'resident'}),
+    ch('You are not touching Sol.',{go:'fight'}),ch('I need to go.',{end:1})]),
+  who:say('tabib','The Engineers had a word for what I am. The Thalassi have a colour for it. Your species has "tabib", which is the kindest. I am the physician of worlds. I was a species once, like yours. We learned medicine before we learned war, and we never stopped. When our sun died I kept practising.\n\nI rise before your dawn to make my rounds. I walk eight kilometres of ward before the first consultation. I keep a house of eight rooms for the universes I have saved. Seven are full.',[ch('Go on.',{go:'a2'})]),
+  want:say('tabib',s=>'Nothing from you. For you: that you live. I plan in fifty-year rounds; your politicians plan in terms. In fifty years your markers say you will be a civilisation or a cautionary note in my files.\n\n"'+TABIB.couplets[2].replace('\n',' / ')+'"\n\nI do not hate you. I have simply seen this presentation before. When a patient is past saving, I close its gates and quarantine its star, so the infection cannot reach the others.',[ch('Go on.',{go:'a2'})]),
+  dx:say('tabib',s=>{const p=Polity.P();const r=p.risks;const worst=Object.keys(r).sort((a,b)=>r[b]-r[a])[0];const pg=Polity.prognosis(s);
+    return 'Presentation: one star, '+Math.round(10+(s.world.pop||1)*1.2)+' billion souls, interstellar for less than a generation.\nMost concerning marker: '+RISKS[worst].name.toLowerCase()+' risk at '+r[worst]+'.\nGovernment: '+Polity.govType(p)+'. Approval '+Math.round(p.approval)+' percent.\nPrognosis: '+pg+'.\n\n'+(pg==='good'?'You are not my patient, Captain. You are a referral. Show me the chart and I will sign you out.':pg==='guarded'?'Close. Bring every marker under forty, or finish three works of the World Ledger, and I will discharge you.':'I have operated on healthier worlds. Fix it, or I will.');},[ch('Go on.',{go:'a2'})]),
+  a2:say('tabib','Another question, or the only one that matters.',[ch('Who are you?',{go:'who'}),ch('What do you want with us?',{go:'want'}),ch('What is my diagnosis?',{go:'dx'}),ch('Here is our chart. Read it.',{req:{fn:'treated'},go:'chart'}),ch('Teach me to do what you do.',{go:'resident'}),ch('You are not touching Sol.',{go:'fight'}),ch('I need to go.',{end:1})]),
+  chart:say('tabib','It takes the chart. It drinks something dark from a small cup, in sips. One. Two. It reads your debt, your courts, your machines, your colonies. Three. Four. It pauses before the fifth, the way a doctor pauses before the word that matters.\n\n"Your markers held. Your machines answer to courts. Your colonies are angry in the healthy way. Your people are listening to your people."\n\nThe fifth sip.\n\n"Discharged."',[ch('Thank you, doctor.',{fx:{fn:'tabibDischarged'},end:1})]),
+  resident:say('tabib','"'+TABIB.couplets[7].replace('\n',' / ')+'"\n\nYou want to hold the knife. A residency lasts fifty years. You will rise before dawn and read charts until the numbers have faces. You will learn that the hardest cut is the one you make on a patient who thanks you. Take off your ship, Captain. Put on the coat.',[ch('Give me the coat.',{fx:{fn:'tabibResident'},end:1}),ch('No. Not like this.',{go:'a2'})]),
+  fight:say('tabib','Ah. The patient who argues with the diagnosis. I have a protocol for that too.\n\nIt stands. It is taller than you thought; it was sitting on the floor of a room built for something much bigger.\n\n"Orderlies."',[ch('Draw your weapon.',{fx:{fn:'tabibFight'},end:1})]),
+}};
+
 /* ── Cutscenes: shots are [camera mode, duration, speaker, line]. Modes interpreted by Cine in main.js. ── */
 const CUTS={
   intro:[
@@ -519,13 +543,14 @@ const Story={
     if(req.rep&&(s.rep[req.rep[0]]||0)<req.rep[1])return false;
     if(req.stage&&this.stage(s,req.stage[0])!==req.stage[1])return false;
     if(req.stageMin&&this.stage(s,req.stageMin[0])<req.stageMin[1])return false;
+    if(req.fn&&!(req.fn==='treated'&&Polity.treated(s)))return false;
     return true;
   },
   crewBonus(s,skill){let b=0;if(skill==='science'&&s.crew.includes('ilyas'))b+=5;if(skill==='engineering'&&s.crew.includes('mara'))b+=5;if(skill==='diplomacy'&&s.crew.includes('ren'))b+=5;return b;},
   reqLabel(req){if(!req)return '';if(req.any)return req.any.map(r=>this.reqLabel(r)).filter(Boolean).join(' / ');
     if(req.skill)return `${SKILLS[req.skill[0]].name.toUpperCase()} ${req.skill[1]}`;if(req.attr)return `${req.attr[0]} ${req.attr[1]}`;
     if(req.credits)return `${U.fmt(req.credits)} CR`;if(req.item)return `${ITEMS[req.item[0]].name.toUpperCase()} ×${req.item[1]}`;if(req.origin)return ORIGINS[req.origin].name.toUpperCase();
-    if(req.crew)return CREW[req.crew].name.toUpperCase();if(req.rep)return `${FACTIONS[req.rep[0]].short.toUpperCase()} ${req.rep[1]}`;return '';},
+    if(req.crew)return CREW[req.crew].name.toUpperCase();if(req.fn==='treated')return 'EVERY RISK UNDER 40 OR 3 LEDGER WORKS';if(req.rep)return `${FACTIONS[req.rep[0]].short.toUpperCase()} ${req.rep[1]}`;return '';},
 
   apply(s,fx){
     if(!fx)return;
@@ -553,6 +578,9 @@ const Story={
     trappistDone(s){s.flags.gate_tau=1;Story.setStage(s,'mq',150);},
     quietDone(s){s.flags.gate_kepler=1;Story.setStage(s,'mq',180);},
     keplerDone(s){s.flags.gate_throat=1;Game.giveItem('elderchart',1);Story.setStage(s,'mq',210);},
+    tabibFight(s){Story.setStage(s,'tabib',40);Surface.startTabibFight&&Surface.startTabibFight();},
+    tabibDischarged(s){Polity.tabibEnd('discharged');},
+    tabibResident(s){Polity.tabibEnd('resident');},
     heavyTurnIn(s){let need=12;for(const k of ['iridium','platinum']){const t=Math.min(need,s.inv[k]||0);Game.takeItem(k,t);need-=t;}},
   },
 
@@ -627,6 +655,7 @@ const Story={
   /* ── World simulation: runs whenever Earth time advances. Writes news. ── */
   sim(s,years){
     if(years<=0)return;
+    Polity.sim(s,years);
     const f=s.flags;const w=s.world;
     const oraclePush=(f.keel==='oracle'?1:0)+(f.quiet==='absorbed'?2:0)+(f.thalassi==='networked'?1:0)+(f.dust==='ordered'?.5:0)+(f.europa==='buried'?.5:0);
     const frontierPush=(f.dust==='workers'?1:0)+(f.he3==='shared'?1.5:0)+(f.keel==='colony'?1:0)+(f.europa==='leaked'?.5:0);

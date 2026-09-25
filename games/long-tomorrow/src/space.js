@@ -20,6 +20,10 @@ const Space={
     // star
     const st=sys.star||{};const Rs=st.blackhole?420:U.clamp((st.R||.5)*520,120,st.giant?4200:1600);
     S.star=Gen.star(Rs,st.color||'#fff4ea',{blackhole:!!st.blackhole});S.scene.add(S.star);S.starR=Rs;
+    // the Helios swarm: World Ledger collectors orbiting the Sun
+    if(sysId==='sol'&&G.state.flags.built_dyson){const N=2400;const g=new THREE.PlaneGeometry(Rs*.05,Rs*.05);const m=new THREE.MeshStandardMaterial({color:C('#2a3448'),metalness:.9,roughness:.25,emissive:C('#f2a33a'),emissiveIntensity:.25,side:THREE.DoubleSide});
+      const im=new THREE.InstancedMesh(g,m,N);const o=new THREE.Object3D();const r=U.rng(7);for(let i=0;i<N;i++){const a=r()*6.28,b=(r()-.5)*1.2,R=Rs*(2.2+r()*2.8);o.position.set(Math.cos(a)*Math.cos(b)*R,Math.sin(b)*R,Math.sin(a)*Math.cos(b)*R);o.lookAt(0,0,0);o.updateMatrix();im.setMatrixAt(i,o.matrix);}
+      S.scene.add(im);S.swarm=im;}
     const lc=st.blackhole?C('#ffb070'):C(st.color||'#fff4ea');S.light=new THREE.PointLight(lc,st.blackhole?1.6:2.2,0,0);S.scene.add(S.light);
     S.scene.add(new THREE.AmbientLight(C('#1a2233'),.55));
     if(sys.companions)for(const c of sys.companions){const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:Gen.glowTex(),color:C(c.color),blending:THREE.AdditiveBlending,depthWrite:false}));sp.material.color.multiplyScalar(c.mag*2);sp.position.set(...c.dir).normalize().multiplyScalar(300000);sp.scale.setScalar(9000);S.scene.add(sp);}

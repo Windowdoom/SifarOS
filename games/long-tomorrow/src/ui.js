@@ -31,8 +31,12 @@ const UI={
   letterbox(on,sub,skip){U.$('#lb-t').style.height=on?'11vh':'0';U.$('#lb-b').style.height=on?'11vh':'0';U.$('#lb-sub').innerHTML=sub||'';U.$('#lb-skip').hidden=!skip;this.hud.style.opacity=on?0:1;},
 
   /* ── HUD ── */
+  bossBar(name,frac){let el=U.$('#bossbar');if(!name){if(el)el.hidden=true;return;}if(!el){el=U.el('div',{id:'bossbar'});el.innerHTML='<b></b><div class="bar"><i></i></div>';this.root.appendChild(el);}
+    el.hidden=false;el.querySelector('b').textContent=name;el.querySelector('i').style.width=U.clamp(frac*100,0,100)+'%';},
   hudTick(){
     const s=G.state;if(!s)return;const sp=G.mode==='space';
+    if(s.pol){let el=U.$('#h-cmd');if(!el){el=U.el('button',{id:'h-cmd',class:'pill'});el.onclick=()=>Polity.open('inbox');this.hud.appendChild(el);}
+      const pending=s.pol.inbox.filter(i=>!i.done&&(i.kind==='scene'||i.kind==='crisis'||i.kind==='offer')).length;el.hidden=!pending;el.textContent=`K · COMMAND · ${pending}`;}
     this.hud.hidden=G.mode==='title'||G.mode==='ending';this.shud.hidden=!sp;
     U.$('#vitals').style.display=sp?'none':'';U.$('#weapon').style.display=sp?'none':'';U.$('#cross').style.display=(G.mode==='surface'&&!Game.inVehicle())?'':'none';
     const site=G.mode==='surface'?Cosmos.site(s.loc.site):null;const sys=Cosmos.get(s.loc.system);
@@ -134,7 +138,8 @@ const UI={
     });
   },
   create(){
-    const rn=U.rng(Date.now()>>>0);const pick={name:U.pick(rn,NAMES.first)+' '+U.pick(rn,NAMES.last),origin:'physician',attrs:{STR:5,PER:5,END:5,CHA:5,INT:5,AGI:5},pts:6,suit:'#39475a',skin:'#b98260',hair:'#1b1410',ship:'Long Tomorrow',helmet:false,body:U.pick(rn,['soldier','michelle'])};
+    const rn=U.rng(Date.now()>>>0);const pick={name:U.pick(rn,NAMES.first)+' '+U.pick(rn,NAMES.last),origin:'physician',attrs:{STR:5,PER:5,END:5,CHA:5,INT:5,AGI:5},pts:6,suit:'#39475a',skin:'#b98260',hair:'#1b1410',ship:'Long Tomorrow',helmet:false,body:U.pick(rn,['soldier','michelle']),mode:'captain'};
+    const MODES={captain:['Captain','The story: a signal, a ship, a crew. Offices and power open as your reputation grows.'],statesman:['Statesman','Start as Chancellor of the Concord with the story running around you. Govern Earth and the colonies from day one.'],sandbox:['Free play','300,000 credits and a warp drive. No hand-holding. The universe does not wait for you.']};
     const BODIES={soldier:['Operator','Field armour, heavy boots. Reads as ex-military.'],michelle:['Civilian','Street clothes under a pressure liner. Reads as crew, not cop.'],xbot:['Synthetic','A printed chassis. You can play as an uploaded mind or a built one.']};
     const suits=['#39475a','#5a3a2a','#2a4a3a','#4a2a4a','#6a6a70','#8a2a2a','#1a1a1e','#c8ccd4'],skins=['#f1d3bd','#e0b596','#c69274','#b98260','#8a5a3c','#5a3a26','#3a2418'],hairs=['#1b1410','#3a2414','#8a5a2a','#c8a060','#a3522a','#d8d8d8','#101010'];
     const m=this.modal('create','New captain',b=>{
@@ -144,6 +149,7 @@ const UI={
         <div class="grid2" style="margin-top:16px"><div><h4 class="lbl" style="margin-bottom:8px">Attributes · <span id="pts"></span> points left</h4><div id="attrs"></div></div>
         <div><h4 class="lbl" style="margin-bottom:8px">Look</h4><div class="lbl" style="margin:6px 0">Body</div><div class="row" id="bodies" style="flex-wrap:wrap;gap:6px"></div><p class="note" id="bdesc" style="margin:6px 0 0"></p><div class="lbl" style="margin:10px 0 6px">Suit tint</div><div class="swatches" id="sw-suit"></div><div id="fallback-look" ${Chars.ready?'hidden':''}><div class="lbl" style="margin:10px 0 6px">Skin</div><div class="swatches" id="sw-skin"></div><div class="lbl" style="margin:10px 0 6px">Hair</div><div class="swatches" id="sw-hair"></div></div>
         <p class="note" id="odesc" style="margin-top:12px"></p></div></div>
+        <h4 class="lbl" style="margin:16px 0 8px">Start as</h4><div class="row" id="modes" style="flex-wrap:wrap;gap:6px"></div><p class="note" id="mdesc" style="margin:6px 0 0"></p>
         <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn primary" id="go">Begin · 2187</button></div></div>`;
       const drawAttrs=()=>{b.querySelector('#pts').textContent=pick.pts;b.querySelector('#attrs').innerHTML=Object.keys(ATTRS).map(a=>{const v=pick.attrs[a]+(ORIGINS[pick.origin].attr===a?1:0);return `<div class="attr" title="${ATTRS[a].desc}"><b>${a}</b><div class="pips">${Array.from({length:10},(_,i)=>`<i class="${i<v?'on':''}"></i>`).join('')}</div><span class="mono">${v}</span><button class="btn small" data-m="${a}">−</button><button class="btn small" data-p="${a}">+</button></div>`;}).join('');
         b.querySelectorAll('[data-m]').forEach(x=>x.onclick=()=>{const a=x.dataset.m;if(pick.attrs[a]>1){pick.attrs[a]--;pick.pts++;drawAttrs();}});
@@ -153,6 +159,7 @@ const UI={
       sw('#sw-suit',suits,'suit');sw('#sw-skin',skins,'skin');sw('#sw-hair',hairs,'hair');
       const drawBodies=()=>{const e=b.querySelector('#bodies');e.innerHTML=Object.entries(BODIES).map(([k,v])=>`<button class="btn small ${k===pick.body?'primary':''}" data-body="${k}">${v[0]}</button>`).join('');b.querySelector('#bdesc').textContent=BODIES[pick.body][1];
         e.querySelectorAll('[data-body]').forEach(x=>x.onclick=()=>{pick.body=x.dataset.body;drawBodies();rebuild();AudioSys.sfx('ui');});};drawBodies();
+      const drawModes=()=>{const e=b.querySelector('#modes');e.innerHTML=Object.entries(MODES).map(([k,v])=>`<button class="btn small ${k===pick.mode?'primary':''}" data-mode="${k}">${v[0]}</button>`).join('');b.querySelector('#mdesc').textContent=MODES[pick.mode][1];e.querySelectorAll('[data-mode]').forEach(x=>x.onclick=()=>{pick.mode=x.dataset.mode;drawModes();AudioSys.sfx('ui');});};drawModes();
       b.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{pick.origin=x.dataset.o;b.querySelectorAll('[data-o]').forEach(y=>y.classList.toggle('sel',y===x));drawAttrs();AudioSys.sfx('ui');});
       drawAttrs();
       // 3D preview
@@ -193,12 +200,12 @@ const UI={
 
   /* ── Wrist computer ── */
   wrist(tab='status'){
-    const tabs=[['status','Status'],['inv','Inventory'],['quests','Journal'],['crew','Crew'],['factions','Factions'],['news','Solnet'],['codex','Codex'],['registry','Registry'],['system','Game']];
+    const tabs=[['status','Status'],['inv','Inventory'],['quests','Journal'],['crew','Crew'],['factions','Factions'],['command','Command'],['news','Solnet'],['codex','Codex'],['registry','Registry'],['system','Game']];
     const m=this.modal('wrist',G.state.player.name+' · wrist computer','',{tabs,onTab:(t,b)=>this.wristTab(t,b),wide:true});
     m.el.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));this.wristTab(tab,m.body);
   },
   wristTab(t,b){
-    const s=G.state;const P=s.player;
+    const s=G.state;const P=s.player;if(t==='command'){setTimeout(()=>Polity.open('overview'),0);return;}
     if(t==='status'){
       const sk=Object.keys(SKILLS).map(k=>{const xp=P.skills[k]||0;const lv=levelFor(xp);const a=XP_TABLE[lv],z=XP_TABLE[Math.min(99,lv+1)];const pct=lv>=99?100:(xp-a)/(z-a)*100;
         return `<div class="skill" title="${SKILLS[k].desc}"><div class="top"><b>${SKILLS[k].name}</b><span class="lv">${lv}</span></div><div class="bar"><i style="width:${pct}%"></i></div><div class="note mono" style="font-size:10px;margin-top:4px">${U.fmt(xp)} xp${lv<99?` · ${U.fmt(z-xp)} to ${lv+1}`:''}</div></div>`;}).join('');

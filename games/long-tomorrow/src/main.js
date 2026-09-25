@@ -15,17 +15,20 @@ const Game={
     if(p.origin==='engineer'){s.ship.fit.low=['armor1','reactor1'];s.ownedModules.pulse1=1;}
     return s;
   },
-  newGame(p){const s=this.newState(p);G.state=s;s.player.hp=this.maxHp();s.player.o2=this.maxO2();const st=this.shipStats();s.ship.hp=st.hull;s.ship.fuel=st.fuel;
+  newGame(p){const s=this.newState(p);G.state=s;s.mode=p.mode||'captain';Polity.init(s);
+    if(s.mode==='statesman'){const P=s.pol;P.office='chancellor';P.capital=55;P.nextElection=48;P.approval=54;s.rep.concord+=30;s.news.push({y:s.earthYear,t:`${p.name} is sworn in as Chancellor of the Concord, promising "a government that still works tomorrow".`});P.lastScene=-2;}
+    if(s.mode==='sandbox'){s.credits=300000;s.ship.fit.drive='warp1';s.flags.warp=1;s.ownedModules.torch=1;}
+    s.player.hp=this.maxHp();s.player.o2=this.maxO2();const st=this.shipStats();s.ship.hp=st.hull;s.ship.fuel=st.fuel;
     s.news.push({y:s.earthYear,t:'Solnet: The Far-Side Array\'s mysterious "Null Signal" enters its fourteenth month. ORACLE maintains it is instrument noise.'});
     Story.start(s,'mq');this.start(s,true);},
   start(s,fresh){
     G.state=s;this.migrate(s);UI.fade(true,'');
     const go=()=>{if(s.loc.station){this.goSpace(s.loc.system,{fromBody:s.loc.station});setTimeout(()=>{s.loc.station=s.loc.station;this.dock(s.loc.station,true);},50);}
       else if(s.loc.site&&!s.loc.inSpace)this.goSurface(s.loc.site,{system:s.loc.system});else this.goSpace(s.loc.system,{});
-      UI.fade(false);if(fresh){setTimeout(()=>Cine.play('intro',()=>{UI.titleCard('Act I · The Null Signal',Cosmos.site('earth').name,`Earth · ${START_YEAR} · g 1.00`);UI.toast(ORIGINS[s.player.origin].intro);}),400);}};
+      UI.fade(false);if(fresh){setTimeout(()=>Cine.play('intro',()=>{UI.titleCard('Act I · The Null Signal',Cosmos.site('earth').name,`Earth · ${START_YEAR} · g 1.00`);UI.toast(ORIGINS[s.player.origin].intro);if(s.mode==='statesman')setTimeout(()=>{Polity.campaign(s);UI.toast('You are Chancellor. Press K to open Command.','lvl');},2500);}),400);}};
     setTimeout(go,60);
   },
-  migrate(s){s.dyn=s.dyn||{};s.hangar=s.hangar||[];s.world=s.world||{oracle:.25,frontier:.3,frontierRadius:14,pop:1,control:{}};s.world.control=s.world.control||{};s.stats=s.stats||{kills:0,jumps:0,ly:0};s.loyalty=s.loyalty||{};},
+  migrate(s){s.dyn=s.dyn||{};s.hangar=s.hangar||[];s.world=s.world||{oracle:.25,frontier:.3,frontierRadius:14,pop:1,control:{}};s.world.control=s.world.control||{};s.stats=s.stats||{kills:0,jumps:0,ly:0};s.loyalty=s.loyalty||{};Polity.init(s);},
   loadSlot(slot){const s=Store.load(slot);if(!s){UI.toast('That save could not be read.','bad');UI.title();return;}this.start(s);},
   saveSlot(slot){return Store.save(slot,G.state);},
   autosave(){if(!G.state||G.mode==='title')return;clearTimeout(this._as);this._as=setTimeout(()=>{Store.save('auto',G.state);Online.push();Online.presence();},300);},
@@ -296,7 +299,7 @@ function boot(){
   const loop=(now)=>{requestAnimationFrame(loop);const raw=Math.max(1e-3,(now-last)/1000);G._fps=G._fps?G._fps*.95+.05/raw:1/raw;let dt=Math.min(.05,raw);last=now;
     const s=G.state;
     // Neural Targeting slows the world, not the player's input
-    if(G.vats&&s){s.player.focus-=dt*18;if(s.player.focus<=0){s.player.focus=0;G.vats=false;}}else if(s&&s.player.focus<100)s.player.focus=Math.min(100,s.player.focus+dt*6);
+    if(G.vats&&s){s.player.focus-=dt*18;if(s.player.focus<=0){s.player.focus=0;G.vats=false;}}else if(s&&s.player.focus<100)s.player.focus=Math.min(100,s.player.focus+dt*(s.life&&s.life.practice.pray?7.5:6));
     const ts=G.vats?.3:1;G.dt=dt*ts;G.time+=dt;
     Render.fx.vats=U.damp(Render.fx.vats,G.vats?1:0,8,dt);Render.fx.damage=U.damp(Render.fx.damage,0,2.5,dt);
     if(s&&G.mode==='surface'){s.player.hp=Math.min(s.player.hp,Game.maxHp());}
@@ -319,10 +322,11 @@ function handleGlobalKeys(){
   if(UI.dlgEl&&UI._dlgKeys){for(let i=1;i<=9;i++)if(Input.hit('Digit'+i)&&UI._dlgKeys[i-1])UI._dlgKeys[i-1]();return;}
   if(G.cine)return;
   if(Input.hit('Escape')){if(UI.open)UI.close();else UI.wrist('system');return;}
-  if(UI.open){if(Input.hit('Tab')&&UI.open.el.id==='wrist')UI.close();if(Input.hit('KeyM')&&UI.open.el.id==='map')UI.close();return;}
+  if(UI.open){if(Input.hit('Tab')&&UI.open.el.id==='wrist')UI.close();if(Input.hit('KeyM')&&UI.open.el.id==='map')UI.close();if(Input.hit('KeyK')&&UI.open.el.id==='command')UI.close();return;}
   if(Input.hit('Tab')||Input.tHit.has('Menu'))UI.wrist('status');
   else if(Input.hit('KeyJ'))UI.wrist('quests');
   else if(Input.hit('KeyM')||Input.tHit.has('Map'))UI.starmap();
+  else if(Input.hit('KeyK')||Input.tHit.has('KeyK'))Polity.open('overview');
   else if(G.mode==='surface'&&Input.hit('KeyB')&&Surface.shipDoor&&!Surface.interior&&Surface.player.pos.distanceTo(Surface.shipDoor)<14)Game.boardShip();
   if(Input.tHit.has('KeyE')&&G.mode==='surface'){Input.hitSet.add('KeyE');}
 }

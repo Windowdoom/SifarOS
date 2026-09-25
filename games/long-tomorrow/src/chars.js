@@ -158,6 +158,8 @@ const Chars={
     if(role==='raider')return{body:'soldier',tint:U.pick(rnd,['#6a5a4a','#5a4a44','#4a4a44','#7a6a5a'])};
     if(role==='android')return{body:'xbot',suit:'#eef0f6',suit2:'#2a2438',glow:'#a38cff'};
     if(role==='engineer')return{body:'xbot',suit:'#f4efe6',suit2:'#b88a3a',glow:'#f2a33a',scale:1.62};
+    if(role==='tabib')return{body:'xbot',suit:'#f4f6f8',suit2:'#9fe8f4',glow:'#8fe8ff',scale:2.3};
+    if(role==='orderly')return{body:'xbot',suit:'#cfd5da',suit2:'#4a5a64',glow:'#bfe8f0',scale:1.05};
     if(role==='suit')return{body:'xbot',suit:U.pick(rnd,['#e6e9ee','#d8dce2','#e8d8c0','#c8d4e0']),suit2:U.pick(rnd,['#f2a33a','#3a4658','#8a2a2a','#2a5a8a']),eva:true};
     const f=rnd()<.5;return f?{body:'michelle',tint:U.pick(rnd,['#ffffff','#e8e0ff','#fff0e0','#e0f0ff'])}:{body:'soldier',tint:U.pick(rnd,['#c8c0b0','#b0b8c8','#a8b0a0','#c0b0a0','#9aa0a8'])};
   },

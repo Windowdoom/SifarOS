@@ -17,7 +17,7 @@ root = pathlib.Path(__file__).parent
 src = root / 'src'
 dist = root / 'dist'
 assets = root / 'assets'
-order = ['core.js', 'render.js', 'assets.js', 'data.js', 'cosmos.js', 'story.js', 'gen.js', 'chars.js',
+order = ['core.js', 'render.js', 'assets.js', 'data.js', 'polity_data.js', 'cosmos.js', 'story.js', 'gen.js', 'chars.js',
          'physics.js', 'weather.js', 'polity.js', 'ui.js', 'surface.js', 'space.js', 'online.js', 'main.js']
 order = [f for f in order if (src / f).exists()]
 
@@ -48,8 +48,7 @@ if '--offline' in sys.argv:
             embedded[f.relative_to(assets).as_posix()] = f'data:{mime};base64,' + base64.b64encode(f.read_bytes()).decode()
     credits = json.loads((assets / 'CREDITS.json').read_text())
     pre = ('<script>window.__ASSETS__=' + json.dumps(embedded) + ';window.__CREDITS__=' + json.dumps(credits) + ';</script>')
-    doc = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
-           '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>'
+    doc = ('<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>'
            + pre + web + '</body></html>')
     (dist / 'the-long-tomorrow-offline.html').write_text(doc)
     print('offline build', round(len(doc) / 1e6, 1), 'MB')
