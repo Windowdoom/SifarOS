@@ -28,7 +28,7 @@ const Game={
   migrate(s){s.dyn=s.dyn||{};s.hangar=s.hangar||[];s.world=s.world||{oracle:.25,frontier:.3,frontierRadius:14,pop:1,control:{}};s.world.control=s.world.control||{};s.stats=s.stats||{kills:0,jumps:0,ly:0};s.loyalty=s.loyalty||{};},
   loadSlot(slot){const s=Store.load(slot);if(!s){UI.toast('That save could not be read.','bad');UI.title();return;}this.start(s);},
   saveSlot(slot){return Store.save(slot,G.state);},
-  autosave(){if(!G.state||G.mode==='title')return;clearTimeout(this._as);this._as=setTimeout(()=>Store.save('auto',G.state),300);},
+  autosave(){if(!G.state||G.mode==='title')return;clearTimeout(this._as);this._as=setTimeout(()=>{Store.save('auto',G.state);Online.push();Online.presence();},300);},
   quitToTitle(){this.autosave();Surface.dispose();Space.dispose();G.mode='title';AudioSys.stopAmbient();AudioSys.stopRadio();Menu3D.start();UI.title();},
 
   /* ── Stats ── */
@@ -235,7 +235,7 @@ const Game={
     if(G.mode==='surface'&&Surface.scene&&!Surface.interior)Surface.syncQuestObjects();
     if(G.mode==='space'&&Space.scene)Space.syncQuestShips();
   },
-  ending(key){const s=G.state;s.flags.ended=key;s.flags.deepgates=1;Story.setStage(s,'mq',250);Story.sim(s,.2);setTimeout(()=>UI.ending(key),400);},
+  ending(key){const s=G.state;s.flags.ended=key;s.flags.deepgates=1;Story.setStage(s,'mq',250);Story.sim(s,.2);Online.push(true);setTimeout(()=>UI.ending(key),400);},
   npcHostile(){if(G.mode!=='surface')return;for(const a of Surface.actors){if(a.kind==='npc'&&a.o.alien==='thalassi'){a.flee=30;}}for(let i=0;i<5;i++){const a=Math.random()*6.28;Surface.spawnEnemy('stinger',Surface.player.pos.x+Math.cos(a)*30,Surface.player.pos.z+Math.sin(a)*30);}
     if(!G.state.inv.shard||G.state.inv.shard<3){Game.giveItem('shard',3-(G.state.inv.shard||0));G.state.quests.mq.stage=145;Story.setStage(G.state,'mq',150);G.state.flags.gate_tau=1;UI.toast('You tear the shards from the dying reef yourself. The Choir goes dark.','bad');}},
 };
@@ -284,7 +284,7 @@ const Menu3D={
 function boot(){
   const canvas=U.$('#gl');Render.init(canvas);Input.init(canvas);UI.init();
   G.camera=new THREE.PerspectiveCamera(G.settings.fov,innerWidth/innerHeight,.1,600000);
-  Cosmos.init();
+  Cosmos.init();Online.init();
   Menu3D.start();UI.title();
   G.onUnlock=()=>{if((G.mode==='surface'||G.mode==='space')&&!Input.uiOpen&&!G.cine&&!UI.dlgEl&&!Input.touch&&!G._noPause){}};
   let last=performance.now();
@@ -303,6 +303,7 @@ function boot(){
     if(G.scene)Render.draw(G.scene,G.camera);
     if(s&&G.mode!=='title')UI.hudTick();
     U.$('#vats').classList.toggle('on',!!G.vats);
+    if(Input.touch){const t=U.$('#touch');const show=(G.mode==='surface'||G.mode==='space')&&!UI.open&&!UI.dlgEl&&!G.cine&&!U.$('#ending');if(t.hidden===show)t.hidden=!show;}
     Input.endFrame();
   };
   requestAnimationFrame(loop);

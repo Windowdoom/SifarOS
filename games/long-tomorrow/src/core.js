@@ -92,7 +92,7 @@ const Input={
     x+=this.tMove.x;y+=this.tMove.y;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}return{x,y};},
   fire(){return this.mb[0]||this.tBtn.has('Fire');},
   setupTouch(){
-    this.touch=true;const root=U.$('#touch');root.hidden=false;
+    this.touch=true;const root=U.$('#touch');
     const stick=root.querySelector('.stick'),knob=stick.querySelector('i'),look=root.querySelector('.look');
     let sid=null,cx=0,cy=0;
     stick.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sid=t.identifier;const r=stick.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;e.preventDefault();},{passive:false});

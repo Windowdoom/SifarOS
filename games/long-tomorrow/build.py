@@ -7,7 +7,7 @@ dist/the-long-tomorrow-offline.html fully self-contained, three.js inlined (need
 import pathlib, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
-order = ['core.js', 'render.js', 'data.js', 'cosmos.js', 'story.js', 'gen.js', 'ui.js', 'surface.js', 'space.js', 'main.js']
+order = ['core.js', 'render.js', 'data.js', 'cosmos.js', 'story.js', 'gen.js', 'ui.js', 'surface.js', 'space.js', 'online.js', 'main.js']
 js = '\n'.join((src / f).read_text() for f in order).replace('</script', '<\\/script')
 css = (src / 'style.css').read_text()
 shell = (src / 'shell.html').read_text().replace('/*@@CSS@@*/', css).replace('/*@@JS@@*/', js)

@@ -169,7 +169,7 @@ const UI={
 
   /* ── Wrist computer ── */
   wrist(tab='status'){
-    const tabs=[['status','Status'],['inv','Inventory'],['quests','Journal'],['crew','Crew'],['factions','Factions'],['news','Solnet'],['codex','Codex'],['system','Game']];
+    const tabs=[['status','Status'],['inv','Inventory'],['quests','Journal'],['crew','Crew'],['factions','Factions'],['news','Solnet'],['codex','Codex'],['registry','Registry'],['system','Game']];
     const m=this.modal('wrist',G.state.player.name+' · wrist computer','',{tabs,onTab:(t,b)=>this.wristTab(t,b),wide:true});
     m.el.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));this.wristTab(tab,m.body);
   },
@@ -215,6 +215,7 @@ const UI={
     }
     if(t==='news'){b.innerHTML=`<p class="note">Solnet wire. Stories are generated from the actual state of the world, including what you did.</p>`+(s.news.length?s.news.map(n=>`<div class="news"><div class="y">${n.y.toFixed(2)}</div>${L(U.esc(n.t))}</div>`).join(''):'<p class="note">No news yet.</p>');}
     if(t==='codex')this.codex(b);
+    if(t==='registry')Online.panel(b);
     if(t==='system'){b.innerHTML=`<div class="grid2"><div class="list">
       ${['auto','1','2','3'].map(sl=>`<div class="li"><span>${sl==='auto'?'Autosave':'Slot '+sl}${Store.meta(sl)?` · <span class="note">${U.esc(Store.meta(sl).loc||'')} ${Math.floor(Store.meta(sl).year)}</span>`:''}</span><span class="row">${sl!=='auto'?`<button class="btn small" data-save="${sl}">Save</button>`:''}${Store.meta(sl)?`<button class="btn small" data-load="${sl}">Load</button>`:''}</span></div>`).join('')}
       </div><div><button class="btn" id="exp">Export save code</button><textarea id="expo" readonly style="width:100%;height:110px;margin-top:8px;background:#0b1220;color:var(--ink);border:1px solid var(--line2);font:11px var(--f-mono)"></textarea>
