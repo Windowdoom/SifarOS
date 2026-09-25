@@ -5430,7 +5430,8 @@ const Assets={
   },
   async loadCredits(){
     if(this.credits)return this.credits;
-    try{const r=await fetch(this.url('CREDITS.json'));this.credits=await r.json();}catch(e){this.credits=window.__CREDITS__||[];}
+    if(window.__CREDITS__){this.credits=window.__CREDITS__;return this.credits;}
+    try{const r=await fetch(this.url('CREDITS.json'));this.credits=await r.json();}catch(e){this.credits=[];}
     return this.credits;
   },
   /* preload the essentials behind the title screen, reporting progress */
