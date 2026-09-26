@@ -95,12 +95,10 @@ func _attach_gun() -> void:
 	att.bone_name = "mixamorig_RightHand"
 	skeleton.add_child(att)
 	gun = Node3D.new()
-	var body_m = MeshInstance3D.new()
-	var bm = BoxMesh.new(); bm.size = Vector3(0.05, 0.1, 0.3)
-	body_m.mesh = bm
-	var gm = StandardMaterial3D.new(); gm.albedo_color = Color(0.1, 0.11, 0.13); gm.metallic = 0.8; gm.roughness = 0.35
-	body_m.material_override = gm
-	gun.add_child(body_m)
+	var bl = load("res://assets/kenney/fps/blaster.glb").instantiate()
+	bl.scale = Vector3.ONE * 0.3
+	bl.rotation.y = PI
+	gun.add_child(bl)
 	att.add_child(gun)
 
 func _ready() -> void:

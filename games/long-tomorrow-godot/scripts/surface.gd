@@ -63,6 +63,7 @@ func _ready() -> void:
 		if site.get("sea") != null: _build_sea()
 		_build_settlement()
 		if site.get("style", "") in ["city", "colony", "dome", "shore", "yards"]: _build_bazaar()
+		if site.get("style", "") in ["city", "colony", "shore"]: _build_plaza_art()
 		_build_props()
 		_spawn_ores()
 		_spawn_npcs()
@@ -1133,6 +1134,38 @@ func _update_bolts(delta: float) -> void:
 			player.take_hit(b.dmg); Sfx.play("hurt"); b.life = 0
 		if b.life <= 0:
 			b.node.queue_free(); bolts.erase(b)
+
+var _burst_tex: Texture2D
+func muzzle_flash(p: Vector3) -> void:
+	if _burst_tex == null: _burst_tex = load("res://assets/kenney/sprites/burst.png")
+	var sp = Sprite3D.new(); sp.texture = _burst_tex; sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sp.pixel_size = 0.004; sp.modulate = Color(1, 0.85, 0.5); sp.shaded = false; sp.rotation.z = randf() * TAU
+	fx_root.add_child(sp); sp.global_position = p
+	var l = OmniLight3D.new(); l.light_color = Color("#ffc070"); l.light_energy = 3; l.omni_range = 5; sp.add_child(l)
+	get_tree().create_timer(0.05).timeout.connect(sp.queue_free)
+
+func _kenney(name: String, pos: Vector3, sc: float, rot := 0.0) -> Node3D:
+	var n = load("res://assets/kenney/models/%s.glb" % name).instantiate()
+	n.position = pos; n.scale = Vector3.ONE * sc; n.rotation.y = rot
+	add_child(n)
+	return n
+
+## Kenney storefronts, a fountain and trees around the plaza, with colliders.
+func _build_plaza_art() -> void:
+	var y0 = h(0, 0)
+	_kenney("pavement-fountain", Vector3(0, y0, 0), 7.0)
+	var shops = ["building-small-a", "building-small-b", "building-small-c", "building-small-d", "building-garage"]
+	for i in 10:
+		var a = float(i) / 10.0 * TAU + 0.31
+		var d = 58.0
+		var x = cos(a) * d; var z = sin(a) * d
+		var b = _kenney(shops[i % shops.size()], Vector3(x, h(x, z), z), 11.0, -a - PI / 2)
+		var sb = StaticBody3D.new(); var cs = CollisionShape3D.new(); var bs = BoxShape3D.new(); bs.size = Vector3(0.9, 1.2, 0.9)
+		cs.shape = bs; cs.position.y = 0.6; sb.add_child(cs); b.add_child(sb)
+	for i in 16:
+		var a = float(i) / 16.0 * TAU
+		var x = cos(a) * 44.0; var z = sin(a) * 44.0
+		_kenney("grass-trees-tall" if i % 2 == 0 else "grass-trees", Vector3(x, h(x, z), z), 6.0, a)
 
 func explode_fx(p: Vector3, _k: float) -> void:
 	var l = OmniLight3D.new(); l.position = p; l.light_color = Color("#ffb060"); l.light_energy = 8; l.omni_range = 10

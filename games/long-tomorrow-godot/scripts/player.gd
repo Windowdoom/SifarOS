@@ -47,7 +47,7 @@ func _ready() -> void:
 	spring.collision_mask = 1
 	pivot.add_child(spring)
 	cam = Camera3D.new(); cam.fov = 72; cam.far = 20000; cam.near = 0.08
-	cam.position = Vector3(0.55, 0.1, 0)
+	cam.position = Vector3(0.95, 0.25, 0)
 	spring.add_child(cam)
 	cam.current = true
 	lamp = SpotLight3D.new(); lamp.spot_range = 45; lamp.spot_angle = 30; lamp.light_energy = 0.0; lamp.shadow_enabled = false
@@ -195,12 +195,16 @@ func _fire(W: Dictionary) -> void:
 			if target and target.has_method("take_damage"):
 				var head: bool = hit.position.y > target.global_position.y + 1.45
 				target.take_damage(float(W.dmg) * (1.8 if head else 1.0) * (1.0 + combat_lv / 120.0), d)
+				if not (target is VehicleBody3D): Game.inst.hud.hit_marker(); Sfx.play("hit", 0.6)
 			elif hit.collider is RigidBody3D:
 				hit.collider.apply_impulse(d * float(W.dmg) * 0.4, hit.position - hit.collider.global_position)
 			surface.spark(end, Color(W.tracer))
 		var muzzle: Vector3 = rig.gun.global_position if rig.gun and rig.visible else origin + fwd * 0.5
 		surface.tracer(muzzle, end, Color(W.tracer), W.get("beam", false))
 	surface.gunshot(global_position)
+	var mz = rig.gun.global_position if rig.gun and rig.visible else origin + fwd * 0.5
+	surface.muzzle_flash(mz + fwd * 0.3)
+	pitch = minf(pitch + float(W.get("dmg", 20)) * 0.0009, 1.1)
 
 func take_hit(dmg: float) -> void:
 	if invuln > 0: return
@@ -215,6 +219,8 @@ func _survival(delta: float) -> void:
 	var s = GameState.s
 	hurt_flash = max(0.0, hurt_flash - delta * 2)
 	invuln = max(0.0, invuln - delta)
+	Game.inst.hud.hurt(hurt_flash * 0.8 + maxf(0.0, 1.0 - float(s.player.hp) / GameState.max_hp() - 0.5) * 1.2)
+	Game.inst.hud.set_crosshair(not get_meta("in_vehicle", false))
 	if float(s.player.hp) < GameState.max_hp() and hurt_flash <= 0:
 		s.player.hp = minf(GameState.max_hp(), float(s.player.hp) + delta * 0.6)
 	if not surface.site.get("breathable", true) and not surface.interior:

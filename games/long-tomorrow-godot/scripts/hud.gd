@@ -23,6 +23,7 @@ func _ready() -> void:
 	help = _label(Vector2(24, 0), 13)
 	help.anchor_top = 1.0; help.anchor_bottom = 1.0; help.offset_top = -40
 	help.modulate = Color(1, 1, 1, 0.6)
+	_make_combat_hud()
 
 func _label(pos: Vector2, size: int) -> Label:
 	var l = Label.new()
@@ -43,6 +44,37 @@ func boss_bar(t: String, frac: float) -> void:
 	var n = int(clampf(frac, 0, 1) * 30)
 	boss_label.text = "%s\n[%s%s]" % [t, "█".repeat(n), "·".repeat(30 - n)]
 
+var cross: TextureRect
+var hitmark: TextureRect
+var vignette: ColorRect
+var _hit_t = 0.0
+
+func _make_combat_hud() -> void:
+	cross = TextureRect.new(); cross.texture = load("res://assets/kenney/sprites/crosshair.png")
+	cross.anchor_left = 0.5; cross.anchor_right = 0.5; cross.anchor_top = 0.5; cross.anchor_bottom = 0.5
+	cross.offset_left = -16; cross.offset_right = 16; cross.offset_top = -16; cross.offset_bottom = 16
+	cross.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; cross.modulate = Color(1, 1, 1, 0.85)
+	add_child(cross)
+	hitmark = TextureRect.new(); hitmark.texture = load("res://assets/kenney/sprites/hit.png")
+	hitmark.anchor_left = 0.5; hitmark.anchor_right = 0.5; hitmark.anchor_top = 0.5; hitmark.anchor_bottom = 0.5
+	hitmark.offset_left = -22; hitmark.offset_right = 22; hitmark.offset_top = -22; hitmark.offset_bottom = 22
+	hitmark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; hitmark.modulate = Color(1, 0.3, 0.2, 0)
+	add_child(hitmark)
+	vignette = ColorRect.new(); vignette.set_anchors_preset(Control.PRESET_FULL_RECT); vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh = Shader.new()
+	sh.code = "shader_type canvas_item; uniform float amt = 0.0; void fragment(){ float d = distance(UV, vec2(0.5)); COLOR = vec4(0.7, 0.02, 0.02, smoothstep(0.35, 0.75, d) * amt); }"
+	var m = ShaderMaterial.new(); m.shader = sh; vignette.material = m
+	add_child(vignette)
+
+func hit_marker() -> void:
+	_hit_t = 0.15
+
+func set_crosshair(on: bool) -> void:
+	if cross: cross.visible = on
+
+func hurt(amount: float) -> void:
+	if vignette: vignette.material.set_shader_parameter("amt", clampf(amount, 0.0, 1.0))
+
 func set_location(t: String) -> void:
 	loc.text = t.to_upper()
 
@@ -60,6 +92,9 @@ func toast(t: String, seconds := 6.0) -> void:
 	_toast_t = seconds
 
 func _process(delta: float) -> void:
+	if hitmark:
+		_hit_t = maxf(0.0, _hit_t - delta)
+		hitmark.modulate.a = _hit_t / 0.15
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		toast_label.modulate.a = clampf(_toast_t, 0.0, 1.0)

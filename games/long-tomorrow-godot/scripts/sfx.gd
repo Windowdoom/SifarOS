@@ -49,7 +49,11 @@ func _process(delta: float) -> void:
 	elif _rain.playing:
 		_rain.stop()
 
+const FILES = {"pistol": "blaster", "shot": "blaster", "rifle": "blaster_repeater", "shotgun": "blaster", "hit": "enemy_hurt", "enemyshot": "enemy_attack", "jump": "jump_a", "land": "land", "ui2": "weapon_change"}
+
 func _play(name: String, vol: float) -> void:
+	if not _cache.has(name) and FILES.has(name):
+		_cache[name] = load("res://assets/kenney/sounds/%s.ogg" % FILES[name])
 	if not _cache.has(name):
 		var buf = _render(name)
 		if buf.is_empty(): return

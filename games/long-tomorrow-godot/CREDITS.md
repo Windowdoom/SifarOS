@@ -16,3 +16,9 @@ Third-party assets used in this project, with their licences.
 - **Yale Bright Star Map (the real sky from Sol)** (`assets/planets/starmap.jpg`): NASA 3D Resources, Public domain (no copyright); no NASA endorsement implied. https://github.com/nasa/NASA-3D-Resources
 
 Engine: Godot 4 (MIT licence), godotengine.org.
+
+## Kenney (kenney.nl), CC0 / MIT
+- City Builder Starter Kit: storefront buildings, trees, fountain, road pieces (assets/kenney/models)
+- FPS Starter Kit: blaster models, weapon and enemy sounds, crosshair, hit marker, muzzle burst
+  (assets/kenney/fps, assets/kenney/sounds, assets/kenney/sprites)
+Licence files: assets/kenney/LICENSE-city.txt, assets/kenney/LICENSE-fps.txt
