@@ -53,6 +53,24 @@ var menu: PopupMenu
 var menu_opts = []
 var xp_drops = []
 
+var kk_index = {}
+
+func _scan(dir: String) -> void:
+	var d = DirAccess.open(dir)
+	if d == null: return
+	for f in d.get_files():
+		var f2 = f.trim_suffix(".remap").trim_suffix(".import")
+		if f2.ends_with(".gltf") or f2.ends_with(".glb"): kk_index[f2.get_basename()] = dir + "/" + f2
+	for sub in d.get_directories(): _scan(dir + "/" + sub)
+
+## Instance a KayKit model by file name (without extension).
+func kk(name: String, parent: Node3D, pos: Vector3, sc: float, rot := 0.0) -> Node3D:
+	var n: Node3D = load(kk_index[name]).instantiate()
+	n.position = pos; n.scale = Vector3.ONE * sc; n.rotation.y = rot
+	parent.add_child(n)
+	for mi in n.find_children("*", "MeshInstance3D", true, false): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return n
+
 # ── helpers ───────────────────────────────────────────────────────────
 static func xp_for(level: int) -> float:
 	var pts = 0.0
@@ -98,13 +116,14 @@ func say(t: String) -> void:
 
 # ── setup ─────────────────────────────────────────────────────────────
 func _ready() -> void:
+	_scan("res://kaykit")
 	for s in SKILLS: xp[s] = 0.0
 	xp.hitpoints = xp_for(10)
 	for i in 28: inv.append(null)
 	_world()
 	_village()
 	_resources()
-	player = _person("#3a5a9a", "#c89a78", "#6a4a2a")
+	player = _rigged("Knight", "axe_1handed")
 	add_child(player)
 	player.position = Vector3(0, h(0, 4), 4)
 	for i in 4: _spawn_mob("goblin", Vector3(-30 + randf() * 12, 0, 20 + randf() * 12))
@@ -115,7 +134,7 @@ func _ready() -> void:
 	say("Left-click to walk or act. Right-click for options. Arrow keys or middle mouse rotate the camera; scroll zooms.")
 	_refresh()
 	for a in OS.get_cmdline_user_args():
-		if a == "--demo": _set_action(objs[4])
+		if a == "--demo": _set_action(objs[2]); player.position = Vector3(-8, 0, -2)
 		if a.begins_with("--shot="):
 			await get_tree().create_timer(9.0).timeout
 			get_viewport().get_texture().get_image().save_png(a.substr(7)); get_tree().quit()
@@ -125,12 +144,12 @@ func _world() -> void:
 	var sky = Sky.new(); var ps = ProceduralSkyMaterial.new()
 	ps.sky_top_color = Color("#5d8fd0"); ps.sky_horizon_color = Color("#c8dcea"); ps.ground_horizon_color = Color("#c8dcea"); ps.ground_bottom_color = Color("#6a7a50")
 	sky.sky_material = ps; env.background_mode = Environment.BG_SKY; env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.45
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.35
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR; env.tonemap_exposure = 0.85; env.adjustment_enabled = true; env.adjustment_saturation = 1.15; env.adjustment_contrast = 1.08
 	env.fog_enabled = true; env.fog_light_color = Color("#c8dcea"); env.fog_density = 0.0035
 	env.ssao_enabled = true; env.ssao_intensity = 1.2
 	var we = WorldEnvironment.new(); we.environment = env; add_child(we)
-	var sun = DirectionalLight3D.new(); sun.rotation = Vector3(-0.9, 0.7, 0); sun.light_color = Color("#fff0d8"); sun.light_energy = 1.05; sun.shadow_enabled = true; sun.shadow_bias = 0.15; sun.shadow_normal_bias = 2.5; sun.directional_shadow_max_distance = 80.0
+	var sun = DirectionalLight3D.new(); sun.rotation = Vector3(-0.9, 0.7, 0); sun.light_color = Color("#fff0d8"); sun.light_energy = 0.9; sun.shadow_enabled = true; sun.shadow_bias = 0.15; sun.shadow_normal_bias = 2.5; sun.directional_shadow_max_distance = 80.0
 	add_child(sun)
 	# faceted terrain with painted vertex colours: grass, dirt paths, sand by the pond
 	var st = SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -159,7 +178,7 @@ func _ground_col(x: float, z: float) -> Color:
 	var path = absf(z - 2) < 1.8 or absf(x) < 1.6 or (absf(x + z * 0.2 - 10) < 1.5 and z < 0)
 	if path: return Color("#9a7a52")
 	var n = fmod(absf(sin(x * 12.9898 + z * 78.233) * 43758.5453), 1.0)
-	return Color("#5a9a3a").lerp(Color("#7ab04a"), n * 0.6)
+	return Color("#6f9a4c").lerp(Color("#86a85a"), n * 0.5)
 
 func _house(x: float, z: float, w: float, d: float, rot: float, roof, sign_text := "") -> void:
 	var n = Node3D.new(); n.position = Vector3(x, h(x, z), z); n.rotation.y = rot; add_child(n)
@@ -175,27 +194,47 @@ func _house(x: float, z: float, w: float, d: float, rot: float, roof, sign_text 
 		var l = Label3D.new(); l.text = sign_text; l.font_size = 64; l.pixel_size = 0.01; l.position = Vector3(0, 3.1, d / 2 + 0.1); l.modulate = Color("#ffe8a0"); l.outline_size = 12
 		n.add_child(l)
 
+func _building(model: String, x: float, z: float, rot: float, sign_text := "") -> void:
+	var y = h(x, z)
+	var n = kk(model, self, Vector3(x, y - 0.2, z), 3.4, rot)
+	var sb = StaticBody3D.new(); var cs = CollisionShape3D.new(); var bs = BoxShape3D.new(); bs.size = Vector3(4.6, 6, 4.6); cs.shape = bs; cs.position = Vector3(x, y + 3, z); sb.add_child(cs); add_child(sb)
+	if sign_text != "":
+		var l = Label3D.new(); l.text = sign_text; l.font_size = 72; l.pixel_size = 0.012; l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.position = Vector3(x, y + 7.5, z); l.modulate = Color("#ffe8a0"); l.outline_size = 14; add_child(l)
+
 func _village() -> void:
-	_house(-12, -6, 7, 5, 0.1, "#9a3a2a", "Bank")
-	_house(-14, 10, 6, 5, -0.2, "#5a6a8a")
-	_house(9, -9, 6, 6, 0.3, "#9a3a2a", "Cook's")
-	_house(-2, -16, 8, 5, 0.0, "#6a4a3a")
-	_house(12, 10, 5, 5, -0.4, "#5a6a8a")
-	# bank booth in front of the bank, and a range in front of the cook's house
-	var bb = _obj_node("bank", "Bank booth", Vector3(-12, 0, -2.4), 1.4)
-	part(bb, box(2.2, 1.2, 0.8), "#6a4a2a", Vector3(0, 0.6, 0)); part(bb, box(2.4, 0.15, 1.0), "#caa060", Vector3(0, 1.25, 0))
-	var rg = _obj_node("range", "Range", Vector3(8.2, 0, -5.2), 1.2)
+	_building("building_market_blue", -12, -7, 0.0, "Bank")
+	_building("building_tavern_red", 10, -10, 0.4, "Cook's Tavern")
+	_building("building_home_A_blue", -15, 10, 0.3)
+	_building("building_home_B_red", 12, 11, -0.5)
+	_building("building_church_yellow", -2, -19, 0.0)
+	_building("building_blacksmith_green", -24, 18, 0.8, "Smithy")
+	_building("building_home_A_yellow", 20, 2, 1.2)
+	_building("building_lumbermill_yellow", -36, -6, 1.6)
+	_building("building_mine_red", 36, -40, 2.4)
+	_building("building_windmill_yellow", 28, 26, 0.2)
+	kk("building_well_blue", self, Vector3(3, h(3, 3) - 0.1, 3), 2.6)
+	var wsb = StaticBody3D.new(); var wcs = CollisionShape3D.new(); var wsh = CylinderShape3D.new(); wsh.radius = 1.6; wcs.shape = wsh; wcs.position = Vector3(3, h(3, 3) + 1, 3); wsb.add_child(wcs); add_child(wsb)
+	# bank booth in front of the bank, and a range in front of the tavern
+	var bb = _obj_node("bank", "Bank booth", Vector3(-12, 0, -2.6), 1.4)
+	kk("crate_long_A", bb, Vector3(0, 0, 0), 2.2)
+	var rg = _obj_node("range", "Range", Vector3(8.6, 0, -5.8), 1.2)
 	part(rg, box(1.4, 1.0, 1.0), "#4a4a50", Vector3(0, 0.5, 0)); part(rg, box(0.8, 0.3, 0.6), "#ff7a2a", Vector3(0, 1.1, 0))
 	var fl = OmniLight3D.new(); fl.light_color = Color("#ff9a4a"); fl.light_energy = 1.5; fl.omni_range = 5; fl.position.y = 1.4; rg.add_child(fl)
-	# well, fences, lamp posts
-	var well = Node3D.new(); well.position = Vector3(3, h(3, 3), 3); add_child(well)
-	part(well, cyl(1.1, 1.1, 1.0, 8), "#8a8a80", Vector3(0, 0.5, 0)); part(well, cyl(0.9, 0.9, 1.02, 8), "#2a4a6a", Vector3(0, 0.52, 0))
-	part(well, box(0.15, 2.4, 0.15), "#5a3a22", Vector3(-1, 1.2, 0)); part(well, box(0.15, 2.4, 0.15), "#5a3a22", Vector3(1, 1.2, 0))
-	var roof = PrismMesh.new(); roof.size = Vector3(2.6, 0.9, 1.6); part(well, roof, "#7a3a2a", Vector3(0, 2.7, 0))
+	# market clutter, flags and fences
+	var props = [["barrel", -7, -3], ["barrel", -7.8, -3.6], ["crate_A_big", -16, -2], ["crate_B_small", -16.8, -1.2], ["sack", 6, -4], ["wheelbarrow", 5, 7], ["resource_lumber", -30, -4], ["resource_stone", 32, -34], ["tent", 16, 18], ["weaponrack", -21, 15], ["bucket_water", 4.5, 4.5], ["crate_open", 14, -6], ["pallet", -9, 6]]
+	for pr in props: kk(pr[0], self, Vector3(pr[1], h(pr[1], pr[2]), pr[2]), 2.2, randf() * TAU)
+	for fp in [[-6, 0], [6, 0], [0, -8]]: kk("flag_red" if fp[0] < 0 else "flag_blue", self, Vector3(fp[0], h(fp[0], fp[1]), fp[1]), 2.4)
+	for i in 16:
+		var x = -30.0 + i * 3.4
+		kk("fence_wood_straight", self, Vector3(x, h(x, 26), 26), 1.7, PI / 2)
+	# hills and mountains ringing the valley
+	var ring = ["mountain_A_grass_trees", "mountain_B_grass_trees", "mountain_C_grass_trees", "hills_A_trees", "hills_B_trees", "hills_C_trees"]
 	for i in 18:
-		var x = -30.0 + i * 2.2
-		var f = Node3D.new(); f.position = Vector3(x, h(x, 26), 26); add_child(f)
-		part(f, box(0.15, 1.2, 0.15), "#6a4a2a", Vector3(0, 0.6, 0)); part(f, box(2.2, 0.12, 0.08), "#8a6a3a", Vector3(0, 0.9, 0)); part(f, box(2.2, 0.12, 0.08), "#8a6a3a", Vector3(0, 0.45, 0))
+		var a = float(i) / 18.0 * TAU
+		var d = 78.0 + (i % 3) * 8.0
+		kk(ring[i % ring.size()], self, Vector3(cos(a) * d, -1.0, sin(a) * d), 10.0 + (i % 2) * 4.0, a)
+	for c in 6: kk("cloud_big" if c % 2 == 0 else "cloud_small", self, Vector3(randf_range(-60, 60), 34 + randf() * 8, randf_range(-60, 60)), 8.0)
 
 func _obj_node(kind: String, name: String, pos: Vector3, r: float) -> Node3D:
 	var n = Node3D.new(); pos.y = h(pos.x, pos.z); n.position = pos; add_child(n)
@@ -209,20 +248,15 @@ func _obj_node(kind: String, name: String, pos: Vector3, r: float) -> Node3D:
 func _tree(kind: String, pos: Vector3) -> void:
 	var n = _obj_node(kind, RES[kind].name, pos, 1.0)
 	var oak = kind == "oak"
-	part(n, cyl(0.25, 0.35, 2.2 if oak else 1.8), "#6a4a2a", Vector3(0, 1.1, 0))
-	var crown = Node3D.new(); n.add_child(crown); crown.name = "crown"
-	if oak:
-		part(crown, sph(1.8, 7, 4), "#4a7a2a", Vector3(0, 3.6, 0)); part(crown, sph(1.3, 6, 4), "#5a8a32", Vector3(0.9, 4.3, 0.4))
-	else:
-		part(crown, cyl(0.0, 1.5, 2.4, 7), "#3a7a3a", Vector3(0, 3.2, 0)); part(crown, cyl(0.0, 1.1, 1.8, 7), "#4a8a3a", Vector3(0, 4.3, 0))
-	var stump = part(n, cyl(0.35, 0.4, 0.4), "#6a4a2a", Vector3(0, 0.2, 0)); stump.visible = false; stump.name = "stump"
+	var crown = kk("tree_single_B" if oak else "tree_single_A", n, Vector3.ZERO, 4.2 if oak else 3.4, randf() * TAU); crown.name = "crown"
+	var stump = kk("tree_single_B_cut" if oak else "tree_single_A_cut", n, Vector3.ZERO, 4.2 if oak else 3.4); stump.name = "stump"; stump.visible = false
 
 func _rock(kind: String, pos: Vector3) -> void:
 	var n = _obj_node(kind, RES[kind].name, pos, 0.9)
-	part(n, sph(1.0, 5, 3), "#7a7670", Vector3(0, 0.5, 0), Vector3(0, randf() * 3, 0), Vector3(1.2, 0.8, 1.0))
+	kk(["rock_single_A", "rock_single_B", "rock_single_C", "rock_single_D"][randi() % 4], n, Vector3.ZERO, 2.6, randf() * TAU)
 	var ore = Node3D.new(); ore.name = "ore"; n.add_child(ore)
 	var col = {"copper": "#d8864a", "tin": "#c8c8c0", "iron": "#8a4a3a"}[kind]
-	for i in 4: part(ore, sph(0.22, 4, 2), col, Vector3(randf_range(-0.6, 0.6), 0.8 + randf() * 0.3, randf_range(-0.4, 0.6)))
+	for i in 5: part(ore, sph(0.2, 4, 2), col, Vector3(randf_range(-0.5, 0.5), 0.7 + randf() * 0.4, randf_range(-0.5, 0.5)))
 
 func _resources() -> void:
 	for p in [Vector2(-24, -20), Vector2(-28, -12), Vector2(-20, -26), Vector2(-32, -24), Vector2(-26, 4), Vector2(-34, -2), Vector2(26, 18), Vector2(-6, 20)]:
@@ -237,6 +271,30 @@ func _resources() -> void:
 		for i in 3: part(n, cyl(0.5 + i * 0.4, 0.5 + i * 0.4, 0.02, 12), "#dff0ff", Vector3(0, 0.02 * i, 0)).name = "ring%d" % i
 
 # ── people and monsters ───────────────────────────────────────────────
+func _rigged(model: String, weapon := "") -> Node3D:
+	var n = Node3D.new()
+	var m: Node3D = load(kk_index[model]).instantiate(); n.add_child(m)
+	var ap: AnimationPlayer = m.find_child("AnimationPlayer", true, false)
+	for a in ["Idle", "Walking_A", "Running_A", "Unarmed_Idle", "1H_Melee_Attack_Chop", "1H_Melee_Attack_Stab", "Interact"]:
+		if ap.has_animation(a): ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+	n.set_meta("anim", ap); n.set_meta("cur", "")
+	var sk: Skeleton3D = m.find_child("Skeleton3D", true, false)
+	if weapon != "" and sk:
+		for b in sk.get_bone_count():
+			if sk.get_bone_name(b).to_lower().contains("handslot.r") or sk.get_bone_name(b).to_lower().contains("handslot_r"):
+				var att = BoneAttachment3D.new(); att.bone_name = sk.get_bone_name(b); sk.add_child(att)
+				att.add_child(load(kk_index[weapon]).instantiate())
+				break
+	for mi in n.find_children("*", "MeshInstance3D", true, false): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return n
+
+func _play(n: Node3D, a: String, speed := 1.0) -> void:
+	if not n.has_meta("anim"): return
+	var ap: AnimationPlayer = n.get_meta("anim")
+	if n.get_meta("cur") == a: return
+	if ap.has_animation(a):
+		n.set_meta("cur", a); ap.play(a, 0.2, speed)
+
 func _person(shirt, skin, legs) -> Node3D:
 	var n = Node3D.new()
 	var body = Node3D.new(); body.name = "body"; n.add_child(body)
@@ -256,8 +314,8 @@ func _spawn_mob(kind: String, pos: Vector3) -> void:
 	var n: Node3D
 	var mob = {"kind": kind, "home": pos, "hp": 5 if kind == "goblin" else 3, "max": 5 if kind == "goblin" else 3, "lvl": 2 if kind == "goblin" else 1, "dead": 0, "cd": 0, "fight": false, "wander": Vector3.ZERO}
 	if kind == "goblin":
-		n = _person("#6a5a3a", "#6a9a3a", "#4a3a2a"); n.scale = Vector3.ONE * 0.8
-		mob.name = "Goblin"
+		n = _rigged("Rogue_Hooded", "sword_1handed")
+		mob.name = "Bandit"
 	else:
 		n = Node3D.new(); mob.name = "Chicken"
 		part(n, sph(0.35, 6, 4), "#f0ece0", Vector3(0, 0.45, 0), Vector3.ZERO, Vector3(1, 0.9, 1.3))
@@ -387,7 +445,7 @@ func _options(o) -> Array:
 		return out
 	if o.get("kind_obj", "") == "mob":
 		out.append(["Attack %s (level-%d)" % [o.name, o.lvl], func(): _set_action(o)])
-		out.append(["Examine %s" % o.name, func(): say("A %s. %s" % [o.name.to_lower(), "It looks mean." if o.kind == "goblin" else "Bwaak."])])
+		out.append(["Examine %s" % o.name, func(): say("A %s. %s" % [o.name.to_lower(), "A cutthroat from the hills." if o.kind == "goblin" else "Bwaak."])])
 	elif RES.has(o.kind):
 		out.append(["%s %s" % [RES[o.kind].verb, o.name], func(): _set_action(o)])
 		out.append(["Examine %s" % o.name, func(): say("Requires %s level %d." % [RES[o.kind].skill.capitalize(), RES[o.kind].lvl])])
@@ -467,6 +525,18 @@ func _process(delta: float) -> void:
 
 func _animate(n: Node3D, moving: bool, delta: float) -> void:
 	anim_t += delta
+	if n.has_meta("anim"):
+		if n == player and busy_anim > 0:
+			busy_anim = maxf(0.0, busy_anim - delta)
+			var act = "1H_Melee_Attack_Chop"
+			if action != null and action.get("kind_obj", "") != "mob":
+				act = {"mining": "1H_Melee_Attack_Stab", "fishing": "Interact", "woodcutting": "1H_Melee_Attack_Chop"}.get(RES.get(action.kind, {}).get("skill", ""), "Interact")
+			_play(n, act)
+		elif n.has_meta("hit_t") and n.get_meta("hit_t") > 0:
+			n.set_meta("hit_t", n.get_meta("hit_t") - delta); _play(n, "1H_Melee_Attack_Slice_Diagonal")
+		elif moving: _play(n, "Running_A" if (n == player and Input.is_key_pressed(KEY_SHIFT)) else "Walking_A")
+		else: _play(n, "Idle")
+		return
 	if not n.has_meta("leg_r"): return
 	var sw = sin(anim_t * 9.0) * 0.6 if moving else 0.0
 	n.get_meta("leg_r").rotation.x = sw; n.get_meta("leg_l").rotation.x = -sw
@@ -480,6 +550,7 @@ func _mob_frame(mob: Dictionary, delta: float) -> void:
 	if mob.dead > 0:
 		n.visible = false; return
 	n.visible = true
+	mob.bar.position.y = 2.6
 	mob.bar.text = "" if mob.hp == mob.max and not mob.fight else "▮".repeat(mob.hp) + "▯".repeat(mob.max - mob.hp)
 	mob.bar.modulate = Color("#40e040") if mob.hp * 2 > mob.max else Color("#e04030")
 	var goal: Vector3 = player.position if mob.fight else mob.home + mob.wander
@@ -506,7 +577,7 @@ func _tick() -> void:
 		if mob.fight:
 			mob.cd -= 1
 			if mob.cd <= 0 and mob.node.position.distance_to(player.position) < 2.0:
-				mob.cd = 4
+				mob.cd = 4; mob.node.set_meta("hit_t", 0.7)
 				var acc = 0.5 * (mob.lvl + 8.0) / (level("defence") + 8.0)
 				var dmg = randi_range(1, mob.lvl) if randf() < acc else 0
 				hp -= dmg
@@ -569,7 +640,7 @@ func _fight_tick(mob: Dictionary) -> void:
 	atk_cd -= 1
 	if atk_cd > 0: return
 	atk_cd = 4
-	busy_anim = 0.4
+	busy_anim = 0.9
 	var acc = 0.6 * (level("attack") + 8.0) / (mob.lvl * 2 + 8.0)
 	var max_hit = 1 + int(level("strength") / 8)
 	var dmg = randi_range(0, max_hit) if randf() < acc else 0

@@ -13,3 +13,10 @@ Attack, Strength, Defence, Hitpoints, Woodcutting, Mining, Fishing and Cooking.
 Trees and rocks deplete and respawn. Goblins and chickens fight back and drop bones and coins.
 There's a 28-slot inventory, a bank, a minimap and a chat box.
 Everything is one flat-shaded low-poly art style made in code, with no external assets.
+
+## Art
+- KayKit Medieval Hexagon Pack and KayKit Character Pack: Adventures, by Kay Lousberg (kaylousberg.com), CC0.
+  Licences: kaykit/LICENSE-medieval.txt, kaykit/LICENSE-characters.txt.
+  Used for the buildings (market, tavern, church, smithy, homes, lumber mill, mine, windmill, well),
+  trees, stumps, rocks, props, fences, flags, mountains and clouds, plus the animated Knight (you)
+  and hooded bandits, with their axe and sword.
