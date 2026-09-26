@@ -1,0 +1,22 @@
+{
+  "name": "the-long-tomorrow",
+  "private": true,
+  "description": "Build tooling for The Long Tomorrow (browser 3D space RPG).",
+  "scripts": {
+    "build": "python3 build.py",
+    "assets": "node tools/prepare_assets.mjs"
+  },
+  "dependencies": {
+    "cannon-es": "0.20.0",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/extensions": "^4",
+    "@gltf-transform/functions": "^4",
+    "draco3dgltf": "^1",
+    "esbuild": "0.24.0",
+    "meshoptimizer": "^0.22",
+    "sharp": "^0.33"
+  }
+}
