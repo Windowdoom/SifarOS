@@ -201,7 +201,7 @@ func _build_environment() -> void:
 	env.adjustment_enabled = true; env.adjustment_saturation = 1.05; env.adjustment_contrast = 1.05
 	# Forward+ high end (Metal on Apple Silicon, Vulkan/D3D12 elsewhere): real-time
 	# global illumination, indirect light, reflections and lit volumetric fog.
-	if RenderingServer.get_current_rendering_method() == "forward_plus":
+	if str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "forward_plus")) == "forward_plus" and OS.get_name() != "Web":
 		env.sdfgi_enabled = not interior
 		env.sdfgi_use_occlusion = true
 		env.sdfgi_cascades = 4
