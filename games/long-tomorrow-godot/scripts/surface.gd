@@ -1146,6 +1146,7 @@ func crime(n: float) -> void:
 	if sec < 0.3 or site.get("style", "") == "camp": return
 	var before = float(s.get("wanted", 0))
 	s.wanted = minf(5.0, before + n * 0.5); s.wantedCool = 0.0
+	if player.invuln > 0: return
 	if ceil(s.wanted) > ceil(before):
 		Sfx.play("alarm"); Game.hud_toast("Security is responding.")
 		for i in int(ceil(s.wanted)):
@@ -1189,6 +1190,16 @@ func player_died() -> void:
 	Game.hud_toast("You were killed. Your medical insurance revives you at the pad. (−%d credits)" % lost)
 	player.global_position = spawn_point()
 	player.velocity = Vector3.ZERO
+	# a fresh start: charges dropped, security stands down, no shots in flight
+	s.wanted = 0.0; s.wantedCool = 0.0
+	for b in bolts: b.node.queue_free()
+	bolts.clear()
+	for e in enemies:
+		if not is_instance_valid(e) or e.dead: continue
+		if e.type == "secdrone": e.queue_free()
+		elif e.type == "guard": e.hostile = false; e.state = "idle"; e.last_seen = null
+		else: e.state = "idle"; e.last_seen = null
+	player.invuln = 5.0
 
 func near_air(p: Vector3) -> bool:
 	return Vector2(p.x, p.z).length() < 40 or p.distance_to(ship_door) < 14 or (player and player.get_meta("in_vehicle", false))

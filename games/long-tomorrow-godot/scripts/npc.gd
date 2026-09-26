@@ -50,7 +50,7 @@ func _ready() -> void:
 	if rig: add_child(rig)
 	if look: add_child(look)
 	if stationary:
-		(rig if rig else look).rotation.y = atan2(-position.x, -position.z)
+		(rig if rig else look).rotation.y = atan2(-position.x, -position.z) + (PI if rig else 0.0)
 
 func talk() -> void:
 	if dead: return
@@ -100,7 +100,7 @@ func _physics_process(delta: float) -> void:
 		move_to = global_position + away.normalized() * 10; speed = 5.5
 	elif stationary:
 		if dist < 6:
-			node.rotation.y = lerp_angle(node.rotation.y, atan2(pp.x - global_position.x, pp.z - global_position.z), clampf(6 * delta, 0, 1))
+			node.rotation.y = lerp_angle(node.rotation.y, atan2(pp.x - global_position.x, pp.z - global_position.z) + (PI if rig else 0.0), clampf(6 * delta, 0, 1))
 	else:
 		wander_t -= delta
 		if target == null or wander_t < 0 or global_position.distance_to(target) < 1.5:
@@ -114,7 +114,7 @@ func _physics_process(delta: float) -> void:
 		if to.length() > 0.5:
 			to = to.normalized()
 			hv = hv.lerp(Vector2(to.x, to.z) * speed, clampf(6 * delta, 0, 1))
-			node.rotation.y = lerp_angle(node.rotation.y, atan2(to.x, to.z), clampf(8 * delta, 0, 1))
+			node.rotation.y = lerp_angle(node.rotation.y, atan2(to.x, to.z) + (PI if rig else 0.0), clampf(8 * delta, 0, 1))
 		else: hv *= 0.8
 	else: hv *= 0.8
 	velocity.x = hv.x; velocity.z = hv.y

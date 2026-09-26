@@ -21,6 +21,7 @@ var mag = {}
 var hurt_flash = 0.0
 var sens = 0.0025
 var o2 = 240.0
+var invuln = 0.0
 
 func _ready() -> void:
 	var sh = CollisionShape3D.new()
@@ -202,6 +203,7 @@ func _fire(W: Dictionary) -> void:
 	surface.gunshot(global_position)
 
 func take_hit(dmg: float) -> void:
+	if invuln > 0: return
 	var s = GameState.s
 	var armour = 1.0 - GameState.level_for(s.player.skills.combat) / 400.0
 	s.player.hp = float(s.player.hp) - dmg * armour
@@ -212,6 +214,7 @@ func take_hit(dmg: float) -> void:
 func _survival(delta: float) -> void:
 	var s = GameState.s
 	hurt_flash = max(0.0, hurt_flash - delta * 2)
+	invuln = max(0.0, invuln - delta)
 	if float(s.player.hp) < GameState.max_hp() and hurt_flash <= 0:
 		s.player.hp = minf(GameState.max_hp(), float(s.player.hp) + delta * 0.6)
 	if not surface.site.get("breathable", true) and not surface.interior:

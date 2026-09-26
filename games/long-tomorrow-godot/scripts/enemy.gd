@@ -197,7 +197,7 @@ func _physics_process(delta: float) -> void:
 	if Vector2(global_position.x, global_position.z).length() > 600:
 		global_position.x *= 0.99; global_position.z *= 0.99
 	var node: Node3D = rig if rig else look
-	node.rotation.y = lerp_angle(node.rotation.y, _yaw, clampf(10 * delta, 0, 1))
+	node.rotation.y = lerp_angle(node.rotation.y, _yaw + (PI if rig else 0.0), clampf(10 * delta, 0, 1))
 	var hs = hv.length()
 	if rig: rig.locomote(hs)
 	elif look: look.pose(delta, hs)
